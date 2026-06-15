@@ -13,6 +13,23 @@ const STUDIO_HS_ICONS = {
   text:  `<svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>`
 };
 
+/* ── Selector d'icona (tipus estàndard) ── */
+function iconPickerHTML(selected = '') {
+  const lib = (typeof HS_ICON_LIBRARY !== 'undefined') ? HS_ICON_LIBRARY : {};
+  const buttons = Object.entries(lib).map(([key, svg]) =>
+    `<button type="button" class="icon-pick ${selected === key ? 'active' : ''}" data-icon="${key}" title="${key}">${svg}</button>`
+  ).join('');
+  return `<div class="pp-field">
+    <label>Icona <span class="label-hint">(opcional)</span></label>
+    <div class="icon-grid">
+      <button type="button" class="icon-pick def ${!selected ? 'active' : ''}" data-icon="" title="Per defecte segons el tipus">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg>
+      </button>
+      ${buttons}
+    </div>
+  </div>`;
+}
+
 /* ── Camps dinàmics per cada tipus de hotspot ── */
 function dynamicFields(type, hs = {}, scenes = [], currentId = '') {
   const s = hs.style || {};
@@ -21,7 +38,7 @@ function dynamicFields(type, hs = {}, scenes = [], currentId = '') {
       return `<div class="pp-field">
         <label>Contingut</label>
         <textarea id="hs-content" rows="5" placeholder="Text informatiu que apareixerà al panell...">${hs.content || ''}</textarea>
-      </div>`;
+      </div>` + iconPickerHTML(hs.icon);
 
     case 'video':
       return `<div class="pp-field">
@@ -44,7 +61,7 @@ function dynamicFields(type, hs = {}, scenes = [], currentId = '') {
       <div class="pp-field">
         <label>Peu de vídeo <span class="label-hint">(opcional)</span></label>
         <input type="text" id="hs-caption" placeholder="Descripció del vídeo" value="${hs.caption || ''}">
-      </div>`;
+      </div>` + iconPickerHTML(hs.icon);
 
     case 'image':
       return `<div class="pp-field">
@@ -54,7 +71,7 @@ function dynamicFields(type, hs = {}, scenes = [], currentId = '') {
       <div class="pp-field">
         <label>Peu de foto <span class="label-hint">(opcional)</span></label>
         <input type="text" id="hs-caption" placeholder="Descripció de la imatge" value="${hs.caption || ''}">
-      </div>`;
+      </div>` + iconPickerHTML(hs.icon);
 
     case 'link':
       return `<div class="pp-field">
@@ -64,7 +81,7 @@ function dynamicFields(type, hs = {}, scenes = [], currentId = '') {
       <div class="pp-field">
         <label>Descripció <span class="label-hint">(opcional)</span></label>
         <textarea id="hs-linkDesc" rows="2" placeholder="Breu descripció de l'enllaç...">${hs.linkDesc || ''}</textarea>
-      </div>`;
+      </div>` + iconPickerHTML(hs.icon);
 
     case 'nav': {
       const opts = scenes
@@ -249,17 +266,32 @@ class Studio {
   }
 
   loadTexture(scene) {
-    const url = this._photoUrls[scene.id] || scene.image || null;
-    if (url) {
-      const loader = new THREE.TextureLoader();
-      loader.load(url,
-        tex => this.applyTex(tex),
+    const sceneId = scene.id;
+    const load = (url, revoke) => {
+      new THREE.TextureLoader().load(url,
+        tex => { if (this.currentScene?.id === sceneId) this.applyTex(tex); if (revoke) URL.revokeObjectURL(url); },
         undefined,
-        () => this.applyTex(this.createPlaceholder(scene))
+        () => { if (this.currentScene?.id === sceneId) this.applyTex(this.createPlaceholder(scene)); if (revoke) URL.revokeObjectURL(url); }
       );
-    } else {
-      this.applyTex(this.createPlaceholder(scene));
-    }
+    };
+    // 1r: preview en memòria d'aquesta sessió
+    if (this._photoUrls[sceneId]) { load(this._photoUrls[sceneId], false); return; }
+    // 2n: IndexedDB (foto pujada en una sessió anterior) → 3r ruta → 4t placeholder
+    PhotoStore.get(sceneId).then(blob => {
+      if (blob) {
+        const url = URL.createObjectURL(blob);
+        this._photoUrls[sceneId] = url; // cau preview
+        load(url, false);
+        this.renderSceneList();
+      } else if (scene.image) {
+        load(scene.image, false);
+      } else {
+        this.applyTex(this.createPlaceholder(scene));
+      }
+    }).catch(() => {
+      if (scene.image) load(scene.image, false);
+      else this.applyTex(this.createPlaceholder(scene));
+    });
   }
 
   applyTex(tex) {
@@ -335,8 +367,10 @@ class Studio {
           style="font-size:${fs}px;color:${st.color||'#fff'};background:${bg};font-weight:${st.bold?700:400};font-style:${st.italic?'italic':'normal'};border-radius:${br};${border}${rot}"
           >${hs.content || '(text)'}</div>`;
       } else {
+        const iconSvg = (hs.icon && typeof HS_ICON_LIBRARY !== 'undefined' && HS_ICON_LIBRARY[hs.icon])
+          || STUDIO_HS_ICONS[hs.type] || STUDIO_HS_ICONS.info;
         el.innerHTML = `
-          <div class="s-hotspot-inner">${STUDIO_HS_ICONS[hs.type] || STUDIO_HS_ICONS.info}</div>
+          <div class="s-hotspot-inner">${iconSvg}</div>
           <div class="s-hotspot-lbl">${hs.title}</div>
         `;
       }
@@ -485,6 +519,9 @@ class Studio {
       data.content = readField('hs-content');
       data.style   = { fontSize, color, bold, italic, background, bgColor, bgOpacity, bgShape, rotation };
     }
+    if (['info','video','image','link'].includes(type)) {
+      data.icon = document.querySelector('.icon-pick.active')?.dataset.icon || '';
+    }
     return data;
   }
 
@@ -576,6 +613,9 @@ class Studio {
   deleteScene() {
     if (this.scenes.length <= 1) { this.showToast('Ha de quedar almenys una escena'); return; }
     if (!confirm(`Eliminar l'escena "${this.currentScene.name}"?`)) return;
+    const removed = this.scenes[this.currentIdx];
+    PhotoStore.delete(removed.id).catch(() => {});
+    delete this._photoUrls[removed.id];
     this.scenes.splice(this.currentIdx, 1);
     const newIdx = Math.max(0, this.currentIdx - 1);
     this.saveData();
@@ -585,21 +625,29 @@ class Studio {
   /* ── Photo upload ── */
   loadPhoto(file) {
     if (!file) return;
-    const url = URL.createObjectURL(file);
     const s = this.currentScene;
-    s._photoFilename = file.name;
+    const safeName = file.name.replace(/[^\w.\-]+/g, '-').toLowerCase();
+    s._photoFilename = safeName;
+
+    // Preview immediat en memòria
+    const url = URL.createObjectURL(file);
     this._photoUrls[s.id] = url;
 
-    // Suggest path
-    if (!s.image) {
-      s.image = `images/${file.name}`;
-      document.getElementById('prop-image-path').value = s.image;
-    }
-    document.getElementById('photo-name').textContent = file.name;
+    // Ruta suggerida per al desplegament (carpeta images/ del repositori)
+    s.image = `images/${safeName}`;
+    document.getElementById('prop-image-path').value = s.image;
+    document.getElementById('photo-name').textContent = safeName;
 
-    const loader = new THREE.TextureLoader();
-    loader.load(url, tex => this.applyTex(tex));
-    this.showToast('Foto carregada (preview)');
+    new THREE.TextureLoader().load(url, tex => this.applyTex(tex));
+
+    // Desat PERSISTENT a IndexedDB (sobreviu a recàrregues i el llegeix el Tour)
+    PhotoStore.put(s.id, file).then(() => {
+      this.saveData();          // sincronitza metadades amb el Tour
+      this.renderSceneList();
+      this.showToast('Foto desada — visible al Tour');
+    }).catch(() => {
+      this.showToast('Foto carregada (només preview, no s\'ha pogut desar)');
+    });
   }
 
   /* ── Save scene props ── */
@@ -622,18 +670,22 @@ class Studio {
 
   /* ── Export ── */
   showExportModal() {
-    // Collect photo notes
-    const missingPhotos = this.scenes
-      .filter(s => !s.image && !this._photoUrls[s.id])
-      .map(s => s.name);
     const photoNote = document.getElementById('em-photo-note');
-    if (missingPhotos.length) {
-      photoNote.textContent =
-        `Recorda pujar les fotos 360° a la carpeta images/ per a: ${missingPhotos.join(', ')}`;
-    } else {
-      photoNote.textContent = '';
-    }
     document.getElementById('export-modal').classList.remove('hidden');
+
+    PhotoStore.keys().then(keys => {
+      const stored = new Set(keys);
+      const withPhoto = this.scenes.filter(s => stored.has(s.id));
+      const missing = this.scenes.filter(s => !stored.has(s.id)).map(s => s.name);
+      let msg = '';
+      if (withPhoto.length) {
+        msg = `${withPhoto.length} foto(s) llestes per descarregar. `;
+      }
+      if (missing.length) {
+        msg += `Encara sense foto: ${missing.join(', ')}.`;
+      }
+      photoNote.textContent = msg;
+    }).catch(() => { photoNote.textContent = ''; });
   }
 
   exportJSON() {
@@ -650,6 +702,25 @@ class Studio {
     a.click();
     URL.revokeObjectURL(url);
     this.showToast('scenes.json descarregat');
+  }
+
+  /* Descarrega totes les fotos pujades amb el nom correcte (per pujar-les a images/) */
+  async downloadPhotos() {
+    let count = 0;
+    for (const s of this.scenes) {
+      let blob = null;
+      try { blob = await PhotoStore.get(s.id); } catch(e) {}
+      if (!blob) continue;
+      const filename = (s.image && s.image.split('/').pop()) || `${s.id}.jpg`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+      count++;
+      await new Promise(r => setTimeout(r, 350)); // separa les descàrregues
+    }
+    this.showToast(count ? `${count} foto(s) descarregada(es) → puja-les a images/` : 'No hi ha fotos pujades');
   }
 
   /* ── Toast ── */
@@ -804,6 +875,19 @@ class Studio {
         this.livePreviewText();
         return;
       }
+      const iconBtn = e.target.closest('.icon-pick');
+      if (iconBtn) {
+        document.querySelectorAll('.icon-pick').forEach(p => p.classList.remove('active'));
+        iconBtn.classList.add('active');
+        // Preview en directe de la icona al visor
+        const hs = this.currentScene.hotspots.find(h => h.id === this.selectedHsId);
+        if (hs) {
+          const innerEl = document.querySelector(`.s-hotspot[data-id="${hs.id}"] .s-hotspot-inner`);
+          const key = iconBtn.dataset.icon;
+          if (innerEl) innerEl.innerHTML = (key && HS_ICON_LIBRARY[key]) || STUDIO_HS_ICONS[hs.type] || STUDIO_HS_ICONS.info;
+        }
+        return;
+      }
     });
     // Preview en directe mentre es canvien sliders / colors / checkboxes
     dynFields.addEventListener('input', () => {
@@ -837,6 +921,7 @@ class Studio {
     document.getElementById('em-close2').addEventListener('click', () =>
       document.getElementById('export-modal').classList.add('hidden'));
     document.getElementById('em-download').addEventListener('click', () => this.exportJSON());
+    document.getElementById('em-download-photos').addEventListener('click', () => this.downloadPhotos());
     document.querySelector('.em-overlay').addEventListener('click', () =>
       document.getElementById('export-modal').classList.add('hidden'));
 

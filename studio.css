@@ -154,6 +154,7 @@ input,textarea,select{font-family:inherit;font-size:13px}
 .s-hotspot:hover .s-hotspot-inner{transform:scale(1.15);box-shadow:0 6px 20px rgba(0,0,0,.6)}
 .s-hotspot.selected .s-hotspot-inner{border-color:#fcd34d;box-shadow:0 0 0 3px rgba(252,211,77,.35),0 6px 20px rgba(0,0,0,.6)}
 
+.s-hotspot-inner{color:#fff}
 .s-hotspot-inner svg{width:15px;height:15px}
 .s-hs-info   .s-hotspot-inner{background:var(--pill-info)}
 .s-hs-video  .s-hotspot-inner{background:var(--pill-video)}
@@ -485,6 +486,22 @@ input,textarea,select{font-family:inherit;font-size:13px}
   background: rgba(255,255,255,.08); padding: 1px 5px; border-radius: 3px;
   font-size: 10px; color: #93b4fd;
 }
+
+/* ── Icon picker grid ── */
+.icon-grid { display: flex; flex-wrap: wrap; gap: 5px; }
+.icon-pick {
+  width: 34px; height: 34px; border-radius: 6px;
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.1);
+  color: var(--text-muted);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: background var(--dur), border-color var(--dur), color var(--dur);
+}
+.icon-pick svg { width: 17px; height: 17px; }
+.icon-pick:hover { background: rgba(255,255,255,.1); color: white; border-color: rgba(255,255,255,.25); }
+.icon-pick.active { background: rgba(15,110,86,.25); border-color: var(--accent); color: #4ade80; }
+.icon-pick.def { border-style: dashed; }
 
 /* ── Shape pills (text hotspot) ── */
 .shape-pills {

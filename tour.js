@@ -310,6 +310,81 @@ const HS_BADGES = {
   link:  'Enllaç'
 };
 
+/* ════════════════════════════════════════════════════════════
+   Biblioteca d'icones seleccionables per als hotspots
+   (clau → SVG). S'usa tant al Tour com al Studio.
+   ════════════════════════════════════════════════════════════ */
+const HS_ICON_LIBRARY = {
+  info:     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="13"/><circle cx="12" cy="16.5" r=".8" fill="currentColor" stroke="none"/></svg>`,
+  play:     `<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M8 5.14v14l11-7-11-7z"/></svg>`,
+  image:    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`,
+  link:     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`,
+  pin:      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>`,
+  star:     `<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`,
+  phone:    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`,
+  mail:     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22,6 12,13 2,6"/></svg>`,
+  door:     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 21h18"/><path d="M5 21V4a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v17"/><path d="M15 9h4a1 1 0 0 1 1 1v11"/><circle cx="11" cy="12" r=".9" fill="currentColor" stroke="none"/></svg>`,
+  doc:      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="14" y2="17"/></svg>`,
+  cart:     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="9" cy="21" r="1.4"/><circle cx="19" cy="21" r="1.4"/><path d="M2.5 3h2l2.4 12.4a2 2 0 0 0 2 1.6h9.2a2 2 0 0 0 2-1.6L23 7H6"/></svg>`,
+  calendar: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`,
+  user:     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
+  question: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><circle cx="12" cy="17" r=".8" fill="currentColor" stroke="none"/></svg>`,
+  wifi:     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12.55a11 11 0 0 1 14 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r=".9" fill="currentColor" stroke="none"/></svg>`,
+  arrow:    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>`
+};
+
+/* ════════════════════════════════════════════════════════════
+   PhotoStore – emmagatzematge persistent de fotos amb IndexedDB.
+   Permet que les fotos sobrevisquin a recàrregues i que el Tour
+   les pugui llegir (mateix origen que el Studio). Sense núvol.
+   ════════════════════════════════════════════════════════════ */
+const PhotoStore = {
+  _db: null,
+  open() {
+    if (this._db) return Promise.resolve(this._db);
+    return new Promise((resolve, reject) => {
+      if (!('indexedDB' in window)) { reject(new Error('no idb')); return; }
+      const req = indexedDB.open('vg-tour-photos', 1);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains('photos')) db.createObjectStore('photos');
+      };
+      req.onsuccess = () => { this._db = req.result; resolve(this._db); };
+      req.onerror   = () => reject(req.error);
+    });
+  },
+  put(key, blob) {
+    return this.open().then(db => new Promise((resolve, reject) => {
+      const tx = db.transaction('photos', 'readwrite');
+      tx.objectStore('photos').put(blob, key);
+      tx.oncomplete = () => resolve();
+      tx.onerror    = () => reject(tx.error);
+    }));
+  },
+  get(key) {
+    return this.open().then(db => new Promise((resolve, reject) => {
+      const tx = db.transaction('photos', 'readonly');
+      const r = tx.objectStore('photos').get(key);
+      r.onsuccess = () => resolve(r.result || null);
+      r.onerror   = () => reject(r.error);
+    }));
+  },
+  delete(key) {
+    return this.open().then(db => new Promise((resolve) => {
+      const tx = db.transaction('photos', 'readwrite');
+      tx.objectStore('photos').delete(key);
+      tx.oncomplete = () => resolve();
+    }));
+  },
+  keys() {
+    return this.open().then(db => new Promise((resolve) => {
+      const tx = db.transaction('photos', 'readonly');
+      const r = tx.objectStore('photos').getAllKeys();
+      r.onsuccess = () => resolve(r.result || []);
+    }));
+  }
+};
+
 
 /* ══════════════════════════════════════════════════════════ */
 class VirtualTour {
@@ -467,16 +542,14 @@ class VirtualTour {
       document.getElementById('scene-title').textContent = s.name;
       document.querySelectorAll('.scene-dot').forEach((d,i)=>d.classList.toggle('active',i===index));
 
-      if (s.image) {
-        const loader = new THREE.TextureLoader();
-        loader.load(s.image,
-          tex => this.applyTexture(tex, s),
-          undefined,
-          ()  => this.applyTexture(this.createPlaceholder(s), s)
-        );
-      } else {
-        this.applyTexture(this.createPlaceholder(s), s);
-      }
+      // UI immediata (hotspots, càmera) – independent de la foto
+      this.lon = 0; this.lat = 0; this.velLon = 0; this.velLat = 0;
+      this.buildHotspots(s);
+      this.hideInfoPanel();
+      this.closeLightbox();
+
+      // Resol la textura: 1r IndexedDB (foto pujada), 2n ruta/url, 3r placeholder
+      this.resolveTexture(s);
     };
 
     if (animate) {
@@ -491,15 +564,32 @@ class VirtualTour {
     }
   }
 
-  applyTexture(tex, sceneData) {
-    tex.minFilter = THREE.LinearFilter;
-    tex.magFilter = THREE.LinearFilter;
-    this.sphere.material = new THREE.MeshBasicMaterial({ map: tex });
-    this.sphere.material.needsUpdate = true;
-    this.lon = 0; this.lat = 0; this.velLon = 0; this.velLat = 0;
-    this.buildHotspots(sceneData);
-    this.hideInfoPanel();
-    this.closeLightbox();
+  /* Resol i aplica la textura (foto IndexedDB → ruta → placeholder) */
+  resolveTexture(s) {
+    const sceneId = s.id;
+    const setTex = (tex) => {
+      // Evita aplicar una textura tardana si ja hem canviat d'escena
+      if (this.scenes[this.currentIndex]?.id !== sceneId) return;
+      tex.minFilter = THREE.LinearFilter;
+      tex.magFilter = THREE.LinearFilter;
+      this.sphere.material = new THREE.MeshBasicMaterial({ map: tex });
+      this.sphere.material.needsUpdate = true;
+    };
+    const loadUrl = (url, revoke) => {
+      new THREE.TextureLoader().load(url,
+        tex => { setTex(tex); if (revoke) URL.revokeObjectURL(url); },
+        undefined,
+        () => { setTex(this.createPlaceholder(s)); if (revoke) URL.revokeObjectURL(url); }
+      );
+    };
+    PhotoStore.get(sceneId).then(blob => {
+      if (blob) loadUrl(URL.createObjectURL(blob), true);
+      else if (s.image) loadUrl(s.image, false);
+      else setTex(this.createPlaceholder(s));
+    }).catch(() => {
+      if (s.image) loadUrl(s.image, false);
+      else setTex(this.createPlaceholder(s));
+    });
   }
 
   /* ── Hotspots DOM ── */
@@ -552,7 +642,7 @@ class VirtualTour {
       /* Hotspot estàndard (info, video, image, link) */
       const inner = document.createElement('div');
       inner.className = 'hotspot-inner';
-      inner.innerHTML = HS_ICONS[hs.type] || HS_ICONS.info;
+      inner.innerHTML = (hs.icon && HS_ICON_LIBRARY[hs.icon]) || HS_ICONS[hs.type] || HS_ICONS.info;
 
       const label = document.createElement('div');
       label.className = 'hotspot-label';
