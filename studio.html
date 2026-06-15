@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Studio | Vallsgenera Tour</title>
+  <link rel="stylesheet" href="studio.css">
+</head>
+<body>
+
+  <!-- ── Top header ── -->
+  <header id="studio-header">
+    <div class="s-logo">
+      <div class="s-logo-icon">V</div>
+      <div>
+        <span class="s-logo-name">Vallsgenera Studio</span>
+        <span class="s-logo-sub">Editor de Tour Virtual</span>
+      </div>
+    </div>
+    <div class="s-toolbar">
+      <button id="btn-add-hs" class="tb-btn" title="Activa el mode per clicar i col·locar un hotspot">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>
+        </svg>
+        Afegir hotspot
+      </button>
+      <div class="tb-sep"></div>
+      <button id="btn-save" class="tb-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+          <polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
+        </svg>
+        Guardar
+      </button>
+      <button id="btn-export" class="tb-btn primary">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        Exportar
+      </button>
+      <a href="index.html" target="_blank" class="tb-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+          <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+        </svg>
+        Tour
+      </a>
+    </div>
+  </header>
+
+  <div class="studio-body">
+
+    <!-- ── Left: scene list ── -->
+    <aside class="s-scenes-panel">
+      <div class="sp-header">
+        <span>Escenes</span>
+        <button id="btn-new-scene" title="Nova escena">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+        </button>
+      </div>
+      <div id="scenes-list"></div>
+    </aside>
+
+    <!-- ── Center: 360° viewer ── -->
+    <main id="studio-viewer">
+      <canvas id="studio-canvas"></canvas>
+      <div id="studio-hotspots"></div>
+
+      <!-- Add-mode overlay -->
+      <div id="add-mode-hint" class="hidden">
+        <span>Clica on vols col·locar el hotspot</span>
+        <button id="btn-cancel-add">Cancel·lar</button>
+      </div>
+      <div id="studio-crosshair" class="hidden"></div>
+
+      <!-- Status bar -->
+      <div id="studio-status">
+        <span id="status-scene">–</span>
+        <span class="status-sep">·</span>
+        <span id="status-coords">lon: 0.0 · lat: 0.0</span>
+        <span class="status-sep">·</span>
+        <span id="status-hs-count">0 hotspots</span>
+      </div>
+    </main>
+
+    <!-- ── Right: properties panel ── -->
+    <aside class="s-props-panel" id="props-panel">
+
+      <!-- Scene properties -->
+      <div id="scene-props-section">
+        <div class="pp-header"><span>Escena</span></div>
+
+        <div class="pp-field">
+          <label>Nom de l'escena</label>
+          <input type="text" id="prop-name" placeholder="Ex: Sala de reunions">
+        </div>
+
+        <div class="pp-field">
+          <label>Color de fons (imatge de mostra)</label>
+          <div class="color-row">
+            <input type="color" id="prop-color" value="#0F6E56">
+            <span id="prop-color-val">#0F6E56</span>
+          </div>
+        </div>
+
+        <div class="pp-field">
+          <label>Foto 360° <span class="label-hint">(JPG, proporció 2:1)</span></label>
+          <div class="photo-drop" id="photo-drop">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+            </svg>
+            <p id="photo-name">Arrossega o clica per seleccionar</p>
+            <input type="file" id="prop-photo" accept=".jpg,.jpeg,.png,.webp">
+          </div>
+        </div>
+
+        <div class="pp-field">
+          <label>Ruta al servidor <span class="label-hint">(per exportar)</span></label>
+          <input type="text" id="prop-image-path" placeholder="images/nom-escena.jpg">
+        </div>
+
+        <div class="pp-hotspot-list">
+          <div class="phl-header">
+            <span>Hotspots</span>
+            <span id="hs-count-badge">0</span>
+          </div>
+          <div id="hs-mini-list"></div>
+        </div>
+
+        <button id="btn-delete-scene" class="danger-btn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+            <path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+          </svg>
+          Eliminar escena
+        </button>
+      </div>
+
+      <!-- Hotspot properties (shows when editing a hotspot) -->
+      <div id="hs-props-section" class="hidden">
+        <div class="pp-header">
+          <span id="hs-props-title">Hotspot</span>
+          <button id="btn-hs-back" title="Tornar a l'escena">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="pp-field">
+          <label>Tipus</label>
+          <div class="type-pills" id="hs-type-pills">
+            <button class="type-pill active" data-type="info">Info</button>
+            <button class="type-pill" data-type="video">Vídeo</button>
+            <button class="type-pill" data-type="image">Imatge</button>
+            <button class="type-pill" data-type="link">Enllaç</button>
+            <button class="type-pill" data-type="nav">Navegar</button>
+            <button class="type-pill" data-type="text">Text</button>
+          </div>
+        </div>
+
+        <div class="pp-field">
+          <label>Títol</label>
+          <input type="text" id="hs-title" placeholder="Títol visible al passar el cursor">
+        </div>
+
+        <div id="hs-dynamic-fields"></div>
+
+        <div class="pp-field pos-field-ro">
+          <label>Posició</label>
+          <div class="pos-ro">lon: <strong id="hs-lon-val">0</strong> &nbsp; lat: <strong id="hs-lat-val">0</strong></div>
+        </div>
+
+        <div class="hs-btns">
+          <button id="btn-save-hs" class="primary-btn">Desar hotspot</button>
+          <button id="btn-delete-hs" class="danger-btn icon-btn">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Toast -->
+  <div id="studio-toast"></div>
+
+  <!-- Export modal -->
+  <div id="export-modal" class="hidden">
+    <div class="em-overlay"></div>
+    <div class="em-panel">
+      <div class="em-header">
+        <h3>Publicar el tour</h3>
+        <button id="em-close">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+      <div class="em-body">
+
+        <!-- URL publicada -->
+        <div class="em-url-section">
+          <label class="em-url-label">URL pública del tour (GitHub Pages)</label>
+          <div class="em-url-row">
+            <input type="url" id="em-public-url" placeholder="https://usuari.github.io/nom-repositori/"
+              spellcheck="false" autocomplete="off">
+            <a id="em-open-url" class="em-url-btn" target="_blank" rel="noopener" title="Obrir el tour publicat">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+              </svg>
+            </a>
+          </div>
+          <p class="em-url-hint">Desa-la un cop i quedarà recordada. Les persones als quals comparteixis aquest link veuran el tour publicat.</p>
+        </div>
+
+        <div class="em-divider"></div>
+
+        <p class="em-intro">Les fotos s'incrusten dins de <code>scenes.json</code>. Només cal pujar UN fitxer al repositori:</p>
+        <div class="em-steps">
+          <div class="em-step"><span>1</span> Descarrega <code>scenes.json</code> (botó de sota)</div>
+          <div class="em-step"><span>2</span> Puja <code>scenes.json</code> a l'arrel del repositori (substituint l'anterior)</div>
+          <div class="em-step"><span>3</span> GitHub Pages publica els canvis automàticament (~1 min)</div>
+        </div>
+        <div class="em-photo-note" id="em-photo-note"></div>
+      </div>
+      <div class="em-footer">
+        <button id="em-download" class="primary-btn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          Descarregar scenes.json
+        </button>
+        <button id="em-close2" class="secondary-btn">Tancar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+  <script src="tour.js"></script>
+  <script src="studio.js"></script>
+</body>
+</html>
