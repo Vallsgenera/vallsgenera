@@ -206,6 +206,16 @@ button{font-family:inherit;cursor:pointer}
   transition:background var(--dur);
 }
 #fullscreen-btn:hover{background:rgba(255,255,255,.22);color:white}
+#local-photo-btn{
+  width:34px;height:34px;
+  background:rgba(255,255,255,.12);
+  border:1px solid rgba(255,255,255,.2);
+  border-radius:var(--radius-sm);
+  color:rgba(255,255,255,.8);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:background var(--dur);
+}
+#local-photo-btn:hover{background:rgba(255,255,255,.22);color:white}
 
 /* ── Transition ── */
 #transition-overlay{

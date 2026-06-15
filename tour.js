@@ -1020,6 +1020,8 @@ window.addEventListener('DOMContentLoaded', () => {
     /* ── Mode públic (GitHub Pages / qualsevol HTTPS extern) ──────────────
        Sempre carrega des de scenes.json + fotos a images/.
        Mai llegeix localStorage (els visitants no en tenen).           */
+    const lpb = document.getElementById('local-photo-btn');
+    if (lpb) lpb.style.display = 'none';
     fetch('scenes.json')
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d) applyScenes(d); })
@@ -1043,6 +1045,33 @@ window.addEventListener('DOMContentLoaded', () => {
 
     ready.finally(() => {
       startTour();
+
+      // Botó de càrrega de foto directa al Tour (només mode local)
+      const localPhotoBtn = document.getElementById('local-photo-btn');
+      if (localPhotoBtn) {
+        document.getElementById('local-photo-input').addEventListener('change', e => {
+          const file = e.target.files[0];
+          if (!file) return;
+          const s = window.tour.scenes[window.tour.currentIndex];
+          if (!s) return;
+          const blobUrl = URL.createObjectURL(file);
+          new THREE.TextureLoader().load(blobUrl, tex => {
+            tex.minFilter = THREE.LinearFilter;
+            tex.magFilter = THREE.LinearFilter;
+            window.tour.sphere.material.map = tex;
+            window.tour.sphere.material.needsUpdate = true;
+            URL.revokeObjectURL(blobUrl);
+          });
+          PhotoStore.put(s.id, file)
+            .then(() => {
+              const t = document.getElementById('pos-toast');
+              if (t) { t.textContent = 'Foto desada!'; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2200); }
+            })
+            .catch(() => {});
+          e.target.value = '';
+        });
+      }
+
       // Sincronització en viu des del Studio (mateixes pestanyes locals)
       window.addEventListener('storage', e => {
         if (e.key !== 'vg-tour-scenes') return;
