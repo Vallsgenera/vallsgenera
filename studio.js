@@ -229,11 +229,17 @@ class Studio {
     }
   }
 
-  saveData() {
-    localStorage.setItem('vg-studio-scenes', JSON.stringify(this.scenes));
-    // Also expose to tour (same origin)
-    localStorage.setItem('vg-tour-scenes', JSON.stringify(this.scenes));
-    this.showToast('Guardat correctament');
+  saveData(silent = false) {
+    // Les fotos incrustades (data URIs) poden superar la quota de localStorage.
+    // Si passa, no és greu: l'exportació llegeix this.scenes de memòria.
+    try {
+      const json = JSON.stringify(this.scenes);
+      localStorage.setItem('vg-studio-scenes', json);
+      localStorage.setItem('vg-tour-scenes', json);
+      if (!silent) this.showToast('Guardat correctament');
+    } catch (e) {
+      if (!silent) this.showToast('Desat en memòria (massa gran per al navegador)');
+    }
   }
 
   get currentScene() { return this.scenes[this.currentIdx]; }
@@ -536,6 +542,18 @@ class Studio {
       data.icon = document.querySelector('.icon-pick.active')?.dataset.icon || '';
     }
     return data;
+  }
+
+  /* Desa els canvis del hotspot a mesura que s'editen, SENSE regenerar el
+     formulari (per no perdre el focus). Així el tipus/destí no es perden mai. */
+  persistHotspotEdits() {
+    const hs = this.currentScene.hotspots.find(h => h.id === this.selectedHsId);
+    if (!hs) return;
+    const activeType = document.querySelector('.type-pill.active')?.dataset.type || hs.type;
+    Object.assign(hs, this.getHsFormData(activeType));
+    this.renderHotspots();
+    this.renderHsMiniList();
+    this.saveData(true);
   }
 
   saveSelectedHotspot() {
@@ -923,6 +941,7 @@ class Studio {
         const localDiv = document.getElementById('hs-video-local');
         if (webDiv)   webDiv.style.display   = src === 'web'   ? '' : 'none';
         if (localDiv) localDiv.style.display = src === 'local' ? '' : 'none';
+        this.persistHotspotEdits();
         return;
       }
       const shapePill = e.target.closest('.shape-pill');
@@ -930,6 +949,7 @@ class Studio {
         document.querySelectorAll('.shape-pill').forEach(p => p.classList.remove('active'));
         shapePill.classList.add('active');
         this.livePreviewText();
+        this.persistHotspotEdits();
         return;
       }
       const iconBtn = e.target.closest('.icon-pick');
@@ -943,6 +963,7 @@ class Studio {
           const key = iconBtn.dataset.icon;
           if (innerEl) innerEl.innerHTML = (key && HS_ICON_LIBRARY[key]) || STUDIO_HS_ICONS[hs.type] || STUDIO_HS_ICONS.info;
         }
+        this.persistHotspotEdits();
         return;
       }
     });
@@ -951,6 +972,8 @@ class Studio {
       const activeType = document.querySelector('.type-pill.active')?.dataset.type;
       if (activeType === 'text') this.livePreviewText();
     });
+    // Desa automàticament qualsevol canvi dels camps (destí de navegació, etc.)
+    dynFields.addEventListener('change', () => this.persistHotspotEdits());
 
     // Hotspot props: type pills
     document.getElementById('hs-type-pills').addEventListener('click', e => {
@@ -961,6 +984,13 @@ class Studio {
       const hs = this.currentScene.hotspots.find(h => h.id === this.selectedHsId);
       document.getElementById('hs-dynamic-fields').innerHTML =
         dynamicFields(pill.dataset.type, hs || {}, this.scenes, this.currentScene.id);
+      // Desa el canvi de tipus (i el destí per defecte) immediatament
+      this.persistHotspotEdits();
+    });
+
+    // Desa el títol del hotspot automàticament
+    document.getElementById('hs-title').addEventListener('input', () => {
+      if (this.selectedHsId) this.persistHotspotEdits();
     });
 
     // Hotspot props: save / delete / back
