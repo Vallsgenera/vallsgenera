@@ -1,0 +1,63 @@
+[
+  {
+    "id": "atencio-tramits",
+    "name": "ENTRADA",
+    "color": "#1c9070",
+    "shade": "#087c5c",
+    "hotspots": [
+      {
+        "id": "at-1",
+        "lon": 30,
+        "lat": 8,
+        "type": "info",
+        "title": "Punt d'Atenció Presencial",
+        "content": "Servei d'atenció personalitzada en horari d'oficina. El nostre equip t'orienta i t'acompanya en tots els tràmits administratius, inscripcions i sol·licitud de serveis."
+      },
+      {
+        "id": "at-2",
+        "lon": -50,
+        "lat": 5,
+        "type": "video",
+        "title": "Com arribar a Vallsgenera",
+        "videoUrl": "https://www.youtube.com/embed/LXb3EKWsInQ",
+        "caption": "Localització i horaris d'atenció de Vallsgenera"
+      },
+      {
+        "id": "at-3",
+        "lon": -120,
+        "lat": 3,
+        "type": "image",
+        "title": "Recepció i sala d'espera",
+        "imageUrl": "https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=1200&q=80",
+        "caption": "L'espai d'atenció al ciutadà de Vallsgenera"
+      },
+      {
+        "id": "at-4",
+        "lon": 110,
+        "lat": 4,
+        "type": "link",
+        "title": "Tràmits en línia",
+        "linkUrl": "https://www.vallsgenera.cat",
+        "linkDesc": "Gestiona els teus tràmits des de casa: sol·licituds, inscripcions i documentació disponibles en línia 24h."
+      },
+      {
+        "id": "hs-mqf5beh1l53h",
+        "lon": -158,
+        "lat": -3.2,
+        "type": "nav",
+        "title": "Nou hotspot",
+        "content": "",
+        "targetScene": "escena-mqf5br3x"
+      }
+    ],
+    "image": "images/r0010051_202604101044_yp00155195.jpg"
+  },
+  {
+    "id": "escena-mqf5br3x",
+    "name": "RECEPCIO",
+    "color": "#0F6E56",
+    "shade": "#0a5040",
+    "hotspots": [],
+    "image": "images/r0010053_202604101047_yp00155195.jpg"
+  }
+]
