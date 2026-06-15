@@ -195,7 +195,7 @@
     <div class="em-overlay"></div>
     <div class="em-panel">
       <div class="em-header">
-        <h3>Exportar configuració</h3>
+        <h3>Publicar el tour</h3>
         <button id="em-close">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
             <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -203,18 +203,49 @@
         </button>
       </div>
       <div class="em-body">
-        <p>Per publicar el tour a GitHub Pages (gratis, sense núvol i accessible des de qualsevol ordinador) cal pujar dues coses al repositori: la configuració i les fotos.</p>
+
+        <!-- URL publicada -->
+        <div class="em-url-section">
+          <label class="em-url-label">URL pública del tour (GitHub Pages)</label>
+          <div class="em-url-row">
+            <input type="url" id="em-public-url" placeholder="https://usuari.github.io/nom-repositori/"
+              spellcheck="false" autocomplete="off">
+            <a id="em-open-url" class="em-url-btn" target="_blank" rel="noopener" title="Obrir el tour publicat">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+              </svg>
+            </a>
+          </div>
+          <p class="em-url-hint">Desa-la un cop i quedarà recordada. Les persones als quals comparteixis aquest link veuran el tour publicat.</p>
+        </div>
+
+        <div class="em-divider"></div>
+
+        <p class="em-intro">Per actualitzar el tour públic cal pujar els canvis al repositori GitHub. Fes-ho en ordre:</p>
         <div class="em-steps">
-          <div class="em-step"><span>1</span> Descarrega <code>scenes.json</code> i les fotos</div>
+          <div class="em-step"><span>1</span> Descarrega els fitxers d'aquí sota</div>
           <div class="em-step"><span>2</span> Puja <code>scenes.json</code> a l'arrel del repositori</div>
-          <div class="em-step"><span>3</span> Puja les fotos a la carpeta <code>images/</code></div>
-          <div class="em-step"><span>4</span> Obre el tour — funcionarà des de qualsevol lloc</div>
+          <div class="em-step"><span>3</span> Puja les fotos a la carpeta <code>images/</code> del repositori</div>
+          <div class="em-step"><span>4</span> GitHub Pages publica els canvis automàticament (~1 min)</div>
         </div>
         <div class="em-photo-note" id="em-photo-note"></div>
       </div>
       <div class="em-footer">
-        <button id="em-download" class="primary-btn">Descarregar scenes.json</button>
-        <button id="em-download-photos" class="secondary-btn">Descarregar fotos</button>
+        <button id="em-download" class="primary-btn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          Descarregar scenes.json
+        </button>
+        <button id="em-download-photos" class="secondary-btn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+            <polyline points="21 15 16 10 5 21"/>
+          </svg>
+          Descarregar fotos
+        </button>
         <button id="em-close2" class="secondary-btn">Tancar</button>
       </div>
     </div>

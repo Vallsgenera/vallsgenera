@@ -311,9 +311,17 @@ const HS_BADGES = {
 };
 
 /* ════════════════════════════════════════════════════════════
-   Biblioteca d'icones seleccionables per als hotspots
-   (clau → SVG). S'usa tant al Tour com al Studio.
+   Detecta l'entorn d'execució
+   · IS_PUBLISHED = HTTPS extern → scenes.json + images/ del repo
+   · !IS_PUBLISHED = local (file://, localhost) → localStorage + IndexedDB
    ════════════════════════════════════════════════════════════ */
+const IS_PUBLISHED = (
+  location.protocol === 'https:' &&
+  location.hostname !== 'localhost' &&
+  !location.hostname.startsWith('127.')
+);
+
+/* ── Biblioteca d'icones seleccionables per als hotspots ── */
 const HS_ICON_LIBRARY = {
   info:     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="13"/><circle cx="12" cy="16.5" r=".8" fill="currentColor" stroke="none"/></svg>`,
   play:     `<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M8 5.14v14l11-7-11-7z"/></svg>`,
@@ -564,11 +572,12 @@ class VirtualTour {
     }
   }
 
-  /* Resol i aplica la textura (foto IndexedDB → ruta → placeholder) */
+  /* Resol i aplica la textura
+     Publicat  → ruta del repositori (images/)
+     Local     → IndexedDB (foto pujada al Studio) → ruta → placeholder */
   resolveTexture(s) {
     const sceneId = s.id;
     const setTex = (tex) => {
-      // Evita aplicar una textura tardana si ja hem canviat d'escena
       if (this.scenes[this.currentIndex]?.id !== sceneId) return;
       tex.minFilter = THREE.LinearFilter;
       tex.magFilter = THREE.LinearFilter;
@@ -582,6 +591,14 @@ class VirtualTour {
         () => { setTex(this.createPlaceholder(s)); if (revoke) URL.revokeObjectURL(url); }
       );
     };
+
+    if (IS_PUBLISHED) {
+      if (s.image) loadUrl(s.image, false);
+      else setTex(this.createPlaceholder(s));
+      return;
+    }
+
+    // Local: IndexedDB → ruta → placeholder
     PhotoStore.get(sceneId).then(blob => {
       if (blob) loadUrl(URL.createObjectURL(blob), true);
       else if (s.image) loadUrl(s.image, false);
@@ -977,7 +994,6 @@ class VirtualTour {
 
 /* ── Boot ── */
 window.addEventListener('DOMContentLoaded', () => {
-  // Només s'executa a la pàgina del tour (no al Studio)
   if (!document.getElementById('panorama-canvas')) return;
 
   if (typeof THREE === 'undefined') {
@@ -995,41 +1011,53 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // 1) localStorage (Studio al mateix navegador) – té màxima prioritat
-  let hasLocal = false;
-  try {
-    const saved = localStorage.getItem('vg-tour-scenes');
-    if (saved) { applyScenes(JSON.parse(saved)); hasLocal = true; }
-  } catch(e) {}
-
-  // 2) scenes.json – només si localStorage no té res (mode desplegament GitHub Pages)
-  const ready = hasLocal
-    ? Promise.resolve()
-    : fetch('scenes.json')
-        .then(r => r.ok ? r.json() : null)
-        .then(d => { if (d) applyScenes(d); })
-        .catch(() => {});
-
-  ready.finally(() => {
+  function startTour() {
     window.tour = new VirtualTour();
     document.getElementById('loading').classList.add('hidden');
+  }
 
-    // Sincronització en viu: quan el Studio guarda, el tour s'actualitza sense recarregar
-    window.addEventListener('storage', e => {
-      if (e.key !== 'vg-tour-scenes') return;
-      try {
-        applyScenes(JSON.parse(e.newValue));
-        const idx = Math.min(window.tour.currentIndex, SCENES.length - 1);
-        // Reconstrueix dots i noms del sidebar
-        const dotsEl = document.getElementById('scene-dots');
-        dotsEl.innerHTML = '';
-        window.tour.buildDots();
-        document.querySelectorAll('.dept-btn .dept-name').forEach((el, i) => {
-          if (SCENES[i]) el.textContent = SCENES[i].name;
-        });
-        // Recarrega escena actual (sense animació)
-        window.tour.loadScene(idx, false);
-      } catch(err) { location.reload(); }
+  if (IS_PUBLISHED) {
+    /* ── Mode públic (GitHub Pages / qualsevol HTTPS extern) ──────────────
+       Sempre carrega des de scenes.json + fotos a images/.
+       Mai llegeix localStorage (els visitants no en tenen).           */
+    fetch('scenes.json')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) applyScenes(d); })
+      .catch(() => {})
+      .finally(() => startTour());
+
+  } else {
+    /* ── Mode local (file://, localhost) – edició amb Studio ─────────────
+       localStorage té prioritat → fotos des d'IndexedDB.
+       Si localStorage és buit prova scenes.json (reutilitzable en local).  */
+    let hasLocal = false;
+    try {
+      const saved = localStorage.getItem('vg-tour-scenes');
+      if (saved) { applyScenes(JSON.parse(saved)); hasLocal = true; }
+    } catch(e) {}
+
+    const ready = hasLocal
+      ? Promise.resolve()
+      : fetch('scenes.json').then(r => r.ok ? r.json() : null)
+          .then(d => { if (d) applyScenes(d); }).catch(() => {});
+
+    ready.finally(() => {
+      startTour();
+      // Sincronització en viu des del Studio (mateixes pestanyes locals)
+      window.addEventListener('storage', e => {
+        if (e.key !== 'vg-tour-scenes') return;
+        try {
+          applyScenes(JSON.parse(e.newValue));
+          const idx = Math.min(window.tour.currentIndex, SCENES.length - 1);
+          const dotsEl = document.getElementById('scene-dots');
+          dotsEl.innerHTML = '';
+          window.tour.buildDots();
+          document.querySelectorAll('.dept-btn .dept-name').forEach((el, i) => {
+            if (SCENES[i]) el.textContent = SCENES[i].name;
+          });
+          window.tour.loadScene(idx, false);
+        } catch(err) { location.reload(); }
+      });
     });
-  });
+  }
 });

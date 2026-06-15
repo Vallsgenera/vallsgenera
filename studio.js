@@ -670,20 +670,34 @@ class Studio {
 
   /* ── Export ── */
   showExportModal() {
-    const photoNote = document.getElementById('em-photo-note');
     document.getElementById('export-modal').classList.remove('hidden');
 
+    // Restaura URL guardada
+    const urlInput = document.getElementById('em-public-url');
+    const openBtn  = document.getElementById('em-open-url');
+    const savedUrl = localStorage.getItem('vg-public-url') || '';
+    urlInput.value = savedUrl;
+    openBtn.href = savedUrl || '#';
+    openBtn.style.opacity = savedUrl ? '1' : '0.35';
+    openBtn.style.pointerEvents = savedUrl ? '' : 'none';
+
+    urlInput.addEventListener('input', () => {
+      const v = urlInput.value.trim();
+      localStorage.setItem('vg-public-url', v);
+      openBtn.href = v || '#';
+      openBtn.style.opacity = v ? '1' : '0.35';
+      openBtn.style.pointerEvents = v ? '' : 'none';
+    }, { once: false });
+
+    // Estat de les fotos
+    const photoNote = document.getElementById('em-photo-note');
     PhotoStore.keys().then(keys => {
       const stored = new Set(keys);
       const withPhoto = this.scenes.filter(s => stored.has(s.id));
-      const missing = this.scenes.filter(s => !stored.has(s.id)).map(s => s.name);
+      const missing   = this.scenes.filter(s => !stored.has(s.id)).map(s => s.name);
       let msg = '';
-      if (withPhoto.length) {
-        msg = `${withPhoto.length} foto(s) llestes per descarregar. `;
-      }
-      if (missing.length) {
-        msg += `Encara sense foto: ${missing.join(', ')}.`;
-      }
+      if (withPhoto.length) msg += `✓ ${withPhoto.length} foto(s) llestes per descarregar. `;
+      if (missing.length)   msg += `Sense foto: ${missing.join(', ')}.`;
       photoNote.textContent = msg;
     }).catch(() => { photoNote.textContent = ''; });
   }
