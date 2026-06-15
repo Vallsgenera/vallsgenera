@@ -77,7 +77,8 @@ function dynamicFields(type, hs = {}, scenes = [], currentId = '') {
       </div>`;
     }
 
-    case 'text':
+    case 'text': {
+      const sh = s.bgShape || 'card';
       return `<div class="pp-field">
         <label>Contingut del text</label>
         <input type="text" id="hs-content" placeholder="Text que apareixerà a la panoràmica" value="${hs.content || ''}">
@@ -108,6 +109,23 @@ function dynamicFields(type, hs = {}, scenes = [], currentId = '') {
         </div>
       </div>
       <div class="pp-field">
+        <label>Forma del fons</label>
+        <div class="shape-pills">
+          <button class="shape-pill ${sh==='card'?'active':''}" data-shape="card">Arrodonit</button>
+          <button class="shape-pill ${sh==='pill'?'active':''}" data-shape="pill">Píndola</button>
+          <button class="shape-pill ${sh==='sharp'?'active':''}" data-shape="sharp">Recte</button>
+          <button class="shape-pill ${sh==='none'?'active':''}" data-shape="none">Sense fons</button>
+        </div>
+      </div>
+      <div class="pp-field">
+        <label>Rotació</label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="range" id="hs-rotation" min="-45" max="45" value="${s.rotation || 0}"
+            oninput="document.getElementById('hs-rotation-val').textContent=this.value+'°'" style="flex:1">
+          <span id="hs-rotation-val" style="min-width:30px;text-align:right;font-size:12px">${s.rotation || 0}°</span>
+        </div>
+      </div>
+      <div class="pp-field">
         <label>Estil tipogràfic</label>
         <div style="display:flex;gap:14px">
           <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:13px">
@@ -118,6 +136,7 @@ function dynamicFields(type, hs = {}, scenes = [], currentId = '') {
           </label>
         </div>
       </div>`;
+    }
 
     default: return '';
   }
@@ -307,8 +326,13 @@ class Studio {
       } else if (hs.type === 'text') {
         const st = hs.style || {};
         const fs = Math.min(st.fontSize || 22, 18);
+        const RADIUS = { pill:'999px', card:'6px', sharp:'0px', none:'0px' };
+        const br = RADIUS[st.bgShape || 'card'] || '6px';
+        const bg = st.bgShape === 'none' ? 'transparent' : (st.background || 'rgba(0,0,0,0.45)');
+        const border = st.bgShape === 'none' ? 'border:none;' : '';
+        const rot = st.rotation ? `transform:rotate(${st.rotation}deg);` : '';
         el.innerHTML = `<div class="s-text-preview"
-          style="font-size:${fs}px;color:${st.color||'#fff'};background:${st.background||'rgba(0,0,0,0.45)'};font-weight:${st.bold?700:400};font-style:${st.italic?'italic':'normal'}"
+          style="font-size:${fs}px;color:${st.color||'#fff'};background:${bg};font-weight:${st.bold?700:400};font-style:${st.italic?'italic':'normal'};border-radius:${br};${border}${rot}"
           >${hs.content || '(text)'}</div>`;
       } else {
         el.innerHTML = `
@@ -452,12 +476,14 @@ class Studio {
       const bgOpacity = parseInt(document.getElementById('hs-bg-opacity')?.value) ?? 45;
       const bold      = document.getElementById('hs-bold')?.checked || false;
       const italic    = document.getElementById('hs-italic')?.checked || false;
+      const bgShape   = document.querySelector('.shape-pill.active')?.dataset.shape || 'card';
+      const rotation  = parseInt(document.getElementById('hs-rotation')?.value) || 0;
       const r = parseInt(bgColor.slice(1,3), 16);
       const g = parseInt(bgColor.slice(3,5), 16);
       const b = parseInt(bgColor.slice(5,7), 16);
       const background = `rgba(${r},${g},${b},${bgOpacity/100})`;
       data.content = readField('hs-content');
-      data.style   = { fontSize, color, bold, italic, background, bgColor, bgOpacity };
+      data.style   = { fontSize, color, bold, italic, background, bgColor, bgOpacity, bgShape, rotation };
     }
     return data;
   }
@@ -635,6 +661,38 @@ class Studio {
     this._toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
   }
 
+  /* ── Preview en directe per al tipus text ── */
+  livePreviewText() {
+    const hs = this.currentScene.hotspots.find(h => h.id === this.selectedHsId);
+    if (!hs) return;
+    const fontSize  = parseInt(document.getElementById('hs-fontSize')?.value) || 22;
+    const color     = document.getElementById('hs-text-color')?.value || '#ffffff';
+    const bgColor   = document.getElementById('hs-bg-color')?.value || '#000000';
+    const bgOpacity = parseInt(document.getElementById('hs-bg-opacity')?.value) ?? 45;
+    const bold      = document.getElementById('hs-bold')?.checked || false;
+    const italic    = document.getElementById('hs-italic')?.checked || false;
+    const bgShape   = document.querySelector('.shape-pill.active')?.dataset.shape || 'card';
+    const rotation  = parseInt(document.getElementById('hs-rotation')?.value) || 0;
+    const content   = document.getElementById('hs-content')?.value || '(text)';
+    const r = parseInt(bgColor.slice(1,3), 16);
+    const g = parseInt(bgColor.slice(3,5), 16);
+    const b = parseInt(bgColor.slice(5,7), 16);
+    const background = `rgba(${r},${g},${b},${bgOpacity/100})`;
+    const RADIUS = { pill:'999px', card:'6px', sharp:'0px', none:'0px' };
+
+    const el = document.querySelector(`.s-hotspot[data-id="${hs.id}"] .s-text-preview`);
+    if (!el) return;
+    el.style.fontSize    = `${Math.min(fontSize, 18)}px`;
+    el.style.color       = color;
+    el.style.background  = bgShape === 'none' ? 'transparent' : background;
+    el.style.fontWeight  = bold ? '700' : '400';
+    el.style.fontStyle   = italic ? 'italic' : 'normal';
+    el.style.borderRadius = RADIUS[bgShape] || '6px';
+    el.style.border      = bgShape === 'none' ? 'none' : '';
+    el.style.transform   = rotation ? `rotate(${rotation}deg)` : '';
+    el.textContent       = content;
+  }
+
   /* ── Events ── */
   setupEvents() {
     const canvas = document.getElementById('studio-canvas');
@@ -725,17 +783,32 @@ class Studio {
     // Delete scene
     document.getElementById('btn-delete-scene').addEventListener('click', () => this.deleteScene());
 
-    // Video source tab switching (delegated on dynamic fields container)
-    document.getElementById('hs-dynamic-fields').addEventListener('click', e => {
+    // Camps dinàmics: video tabs, shape pills, live preview de text
+    const dynFields = document.getElementById('hs-dynamic-fields');
+    dynFields.addEventListener('click', e => {
       const tab = e.target.closest('.vsrc-tab');
-      if (!tab) return;
-      const src = tab.dataset.src;
-      document.querySelectorAll('.vsrc-tab').forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
-      const webDiv   = document.getElementById('hs-video-web');
-      const localDiv = document.getElementById('hs-video-local');
-      if (webDiv)   webDiv.style.display   = src === 'web'   ? '' : 'none';
-      if (localDiv) localDiv.style.display = src === 'local' ? '' : 'none';
+      if (tab) {
+        const src = tab.dataset.src;
+        document.querySelectorAll('.vsrc-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        const webDiv   = document.getElementById('hs-video-web');
+        const localDiv = document.getElementById('hs-video-local');
+        if (webDiv)   webDiv.style.display   = src === 'web'   ? '' : 'none';
+        if (localDiv) localDiv.style.display = src === 'local' ? '' : 'none';
+        return;
+      }
+      const shapePill = e.target.closest('.shape-pill');
+      if (shapePill) {
+        document.querySelectorAll('.shape-pill').forEach(p => p.classList.remove('active'));
+        shapePill.classList.add('active');
+        this.livePreviewText();
+        return;
+      }
+    });
+    // Preview en directe mentre es canvien sliders / colors / checkboxes
+    dynFields.addEventListener('input', () => {
+      const activeType = document.querySelector('.type-pill.active')?.dataset.type;
+      if (activeType === 'text') this.livePreviewText();
     });
 
     // Hotspot props: type pills

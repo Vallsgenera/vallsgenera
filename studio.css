@@ -486,5 +486,26 @@ input,textarea,select{font-family:inherit;font-size:13px}
   font-size: 10px; color: #93b4fd;
 }
 
+/* ── Shape pills (text hotspot) ── */
+.shape-pills {
+  display: flex; flex-wrap: wrap; gap: 4px;
+}
+.shape-pill {
+  flex: 1; min-width: 56px;
+  padding: 4px 6px; border-radius: var(--radius);
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.1);
+  color: var(--text-muted); font-size: 11px; font-weight: 500;
+  cursor: pointer; text-align: center;
+  transition: background var(--dur), border-color var(--dur), color var(--dur);
+  white-space: nowrap;
+}
+.shape-pill:hover { background: rgba(255,255,255,.1); color: white; }
+.shape-pill.active {
+  background: rgba(217,119,6,.2);
+  border-color: var(--pill-text);
+  color: #fbbf24;
+}
+
 /* ── Sections hidden ── */
 .hidden{display:none!important}

@@ -516,12 +516,19 @@ class VirtualTour {
       /* Text overlay – sempre visible, sense icona */
       if (hs.type === 'text') {
         const s = hs.style || {};
+        const RADIUS = { pill: '999px', card: '6px', sharp: '0px', none: '0px' };
+        const borderRadius = RADIUS[s.bgShape || 'card'] || '6px';
+        const bg = s.bgShape === 'none' ? 'transparent' : (s.background || 'rgba(0,0,0,0.45)');
+        const border = s.bgShape === 'none' ? 'border:none;' : '';
+        const rotation = s.rotation ? `transform:rotate(${s.rotation}deg);` : '';
         el.innerHTML = `<div class="text-overlay" style="
           font-size:${s.fontSize || 22}px;
           font-weight:${s.bold ? '700' : '400'};
           font-style:${s.italic ? 'italic' : 'normal'};
           color:${s.color || '#ffffff'};
-          background:${s.background || 'rgba(0,0,0,0.45)'}
+          background:${bg};
+          border-radius:${borderRadius};
+          ${border}${rotation}
         ">${hs.content || ''}</div>`;
         overlay.appendChild(el);
         return;
@@ -898,41 +905,41 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // 1) localStorage (Studio al mateix navegador)
+  // 1) localStorage (Studio al mateix navegador) – té màxima prioritat
+  let hasLocal = false;
   try {
     const saved = localStorage.getItem('vg-tour-scenes');
-    if (saved) applyScenes(JSON.parse(saved));
+    if (saved) { applyScenes(JSON.parse(saved)); hasLocal = true; }
   } catch(e) {}
 
-  // 2) scenes.json (GitHub Pages / servidor)
-  fetch('scenes.json')
-    .then(r => r.ok ? r.json() : null)
-    .then(data => { if (data) applyScenes(data); })
-    .catch(() => {})
-    .finally(() => {
-      window.tour = new VirtualTour();
-      document.getElementById('loading').classList.add('hidden');
+  // 2) scenes.json – només si localStorage no té res (mode desplegament GitHub Pages)
+  const ready = hasLocal
+    ? Promise.resolve()
+    : fetch('scenes.json')
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d) applyScenes(d); })
+        .catch(() => {});
 
-      // Quan el Studio guarda, recarrega el tour automàticament
-      window.addEventListener('storage', e => {
-        if (e.key === 'vg-tour-scenes') {
-          showReloadBanner();
-        }
-      });
+  ready.finally(() => {
+    window.tour = new VirtualTour();
+    document.getElementById('loading').classList.add('hidden');
+
+    // Sincronització en viu: quan el Studio guarda, el tour s'actualitza sense recarregar
+    window.addEventListener('storage', e => {
+      if (e.key !== 'vg-tour-scenes') return;
+      try {
+        applyScenes(JSON.parse(e.newValue));
+        const idx = Math.min(window.tour.currentIndex, SCENES.length - 1);
+        // Reconstrueix dots i noms del sidebar
+        const dotsEl = document.getElementById('scene-dots');
+        dotsEl.innerHTML = '';
+        window.tour.buildDots();
+        document.querySelectorAll('.dept-btn .dept-name').forEach((el, i) => {
+          if (SCENES[i]) el.textContent = SCENES[i].name;
+        });
+        // Recarrega escena actual (sense animació)
+        window.tour.loadScene(idx, false);
+      } catch(err) { location.reload(); }
     });
+  });
 });
-
-function showReloadBanner() {
-  let b = document.getElementById('reload-banner');
-  if (b) return;
-  b = document.createElement('div');
-  b.id = 'reload-banner';
-  b.style.cssText = 'position:fixed;top:60px;left:50%;transform:translateX(-50%);' +
-    'background:#0F6E56;color:white;padding:10px 20px;border-radius:8px;z-index:999;' +
-    'display:flex;gap:12px;align-items:center;font-size:13px;font-weight:600;' +
-    'box-shadow:0 4px 20px rgba(0,0,0,0.4);';
-  b.innerHTML = 'El Studio ha guardat canvis. <button onclick="location.reload()" ' +
-    'style="background:white;color:#0F6E56;border:none;border-radius:5px;' +
-    'padding:4px 12px;font-weight:700;cursor:pointer">Actualitzar</button>';
-  document.body.appendChild(b);
-}
