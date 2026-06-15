@@ -858,8 +858,33 @@ window.addEventListener('DOMContentLoaded', () => {
       'Comprova la connexió a internet i actualitza la pàgina.</p>';
     return;
   }
-  setTimeout(() => {
-    window.tour = new VirtualTour();
-    document.getElementById('loading').classList.add('hidden');
-  }, 500);
+
+  // Si hi ha dades del Studio (localStorage), sobreescriu les escenes per defecte
+  try {
+    const saved = localStorage.getItem('vg-tour-scenes');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        SCENES.length = 0;
+        parsed.forEach(s => SCENES.push(s));
+      }
+    }
+  } catch(e) {}
+
+  // Intenta llegir scenes.json (funciona en servidor HTTP / GitHub Pages)
+  fetch('scenes.json')
+    .then(r => r.ok ? r.json() : null)
+    .then(data => {
+      if (data && Array.isArray(data) && data.length > 0) {
+        SCENES.length = 0;
+        data.forEach(s => SCENES.push(s));
+      }
+    })
+    .catch(() => {}) // silencia l'error en file://
+    .finally(() => {
+      setTimeout(() => {
+        window.tour = new VirtualTour();
+        document.getElementById('loading').classList.add('hidden');
+      }, 500);
+    });
 });

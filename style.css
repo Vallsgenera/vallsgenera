@@ -157,6 +157,14 @@ button{font-family:inherit;cursor:pointer}
   color:rgba(255,255,255,.5);text-align:center;line-height:1.6;
 }
 .footer-city{font-size:13px;font-weight:700;color:rgba(255,255,255,.8);margin-top:2px}
+.studio-link{
+  display:inline-flex;align-items:center;gap:5px;
+  margin-top:10px;font-size:11px;color:rgba(255,255,255,.5);
+  text-decoration:none;padding:5px 10px;border-radius:6px;
+  border:1px solid rgba(255,255,255,.12);
+  transition:background var(--dur),color var(--dur);
+}
+.studio-link:hover{background:rgba(255,255,255,.1);color:rgba(255,255,255,.85)}
 
 #sidebar-overlay{
   display:none;position:fixed;inset:0;
