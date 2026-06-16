@@ -409,7 +409,8 @@ class VirtualTour {
     this.userInteractedAt = 0;
     this.lastPinchDist = null;
     this._decalMeshes  = []; // Three.js meshes for image overlays
-    this.globeMode = false; // auto-rotates while splash is visible
+    this.globeMode = false;
+    this._inTransition = false; // true during tiny-planet → equirect animation
 
     this.init();
   }
@@ -1055,13 +1056,94 @@ class VirtualTour {
     this.renderer.render(this.threeScene, this.camera);
   }
 
+  /* ── Tiny-planet → equirectangular shader transition ── */
+  startTinyPlanetTransition(duration) {
+    const tex = this.sphere.material && this.sphere.material.map
+      ? this.sphere.material.map : null;
+
+    const shaderMat = new THREE.ShaderMaterial({
+      uniforms: {
+        uTexture: { value: tex || new THREE.Texture() },
+        uT:       { value: 0.0 },
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        varying vec3 vPos;
+        void main(){
+          vUv  = uv;
+          vPos = position;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+        }
+      `,
+      fragmentShader: `
+        #define PI 3.14159265358979
+        uniform sampler2D uTexture;
+        uniform float uT;
+        varying vec2 vUv;
+        varying vec3 vPos;
+        void main(){
+          // Undo the scale(-1,1,1) to get true world direction
+          vec3 d = normalize(vec3(-vPos.x, vPos.y, vPos.z));
+
+          // A — Tiny planet: stereographic projection from north pole
+          //     nadir (d.y=-1) → UV centre (0.5,0.5)
+          float denom = max(1.0 - d.y, 0.0001);
+          vec2 uvA = vec2(d.x, d.z) / denom * 0.2 + 0.5;
+
+          // B — Equirectangular: Three.js-generated UVs (correct by construction)
+          vec2 uvB = vUv;
+
+          float t = smoothstep(0.0, 1.0, uT);
+          gl_FragColor = texture2D(uTexture, mix(uvA, uvB, t));
+        }
+      `,
+    });
+
+    this.sphere.material = shaderMat;
+    this._inTransition = true;
+    this.globeMode = false;
+
+    const savedFov = this.fov;   // 75
+    const startLat = -85.0;
+    const startFov = 130.0;
+    this.lat = startLat;
+    this.camera.fov = startFov;
+    this.camera.updateProjectionMatrix();
+
+    const t0 = performance.now();
+    const tick = () => {
+      const raw = Math.min((performance.now() - t0) / duration, 1.0);
+      // ease-in-out cubic
+      const ease = raw < 0.5 ? 4*raw*raw*raw : 1 - Math.pow(-2*raw+2,3)/2;
+
+      shaderMat.uniforms.uT.value = raw;
+      this.lat = startLat + (0 - startLat) * ease;
+      this.camera.fov = startFov + (savedFov - startFov) * ease;
+      this.camera.updateProjectionMatrix();
+
+      if (raw < 1.0) {
+        requestAnimationFrame(tick);
+      } else {
+        // Restore standard material
+        this.sphere.material = new THREE.MeshBasicMaterial({ map: tex });
+        this.lat = 0;
+        this.camera.fov = savedFov;
+        this.camera.updateProjectionMatrix();
+        this._inTransition = false;
+      }
+    };
+    requestAnimationFrame(tick);
+  }
+
   update() {
-    if (!this.pointerDown) {
-      this.lon += this.velLon + (this.globeMode ? 0.15 : 0);
-      this.lat += this.velLat;
-      this.velLon*=.93; this.velLat*=.93;
+    if (!this._inTransition) {
+      if (!this.pointerDown) {
+        this.lon += this.velLon + (this.globeMode ? 0.15 : 0);
+        this.lat += this.velLat;
+        this.velLon*=.93; this.velLat*=.93;
+      }
+      this.lat=Math.max(-85,Math.min(85,this.lat));
     }
-    this.lat=Math.max(-85,Math.min(85,this.lat));
     const phi   = THREE.MathUtils.degToRad(90-this.lat);
     const theta = THREE.MathUtils.degToRad(this.lon);
     this.camera.lookAt(
@@ -1094,38 +1176,20 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   function startTour() {
-    // Clip the panorama to a spinning globe centred on screen (behind the splash image)
-    const vc = document.getElementById('viewer-container');
-    vc.classList.add('globe-mode');
-
     window.tour = new VirtualTour();
-    window.tour.globeMode = true; // start auto-rotating globe
     document.getElementById('loading').classList.add('hidden');
 
-    // Show splash
     const splash = document.getElementById('splash');
     if (splash) {
       splash.classList.remove('hidden');
       splash.addEventListener('click', () => {
-        if (window.tour) window.tour.globeMode = false;
-
-        // Fade out the splash image
+        // Fade out landing image
         splash.classList.add('out');
 
-        // Force-commit the current clip-path (from globe-mode class) as the
-        // animation start point, then immediately transition to full-screen.
-        // void offsetWidth is the reliable way to flush styles before animating.
-        vc.style.clipPath = 'circle(19vmin at 50% 50%)';
-        void vc.offsetWidth; // force reflow → browser commits starting state
-        vc.style.transition = 'clip-path 3s cubic-bezier(0.2,0,0.05,1)';
-        vc.style.clipPath = 'circle(150vmax at 50% 50%)';
-        vc.classList.remove('globe-mode');
+        // Start tiny-planet → 360° shader transition (3 s)
+        window.tour.startTinyPlanetTransition(3000);
 
-        setTimeout(() => {
-          splash.classList.add('hidden');
-          vc.style.transition = '';
-          vc.style.clipPath = '';
-        }, 3500);
+        setTimeout(() => splash.classList.add('hidden'), 3500);
       }, { once: true });
     }
   }

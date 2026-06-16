@@ -67,15 +67,6 @@ button{font-family:inherit;cursor:pointer}
   position:fixed;top:0;right:0;bottom:0;left:0;
   overflow:hidden;
 }
-/* Globe-mode: panorama clipped to a sphere centred on screen */
-#viewer-container.globe-mode{
-  clip-path:circle(19vmin at 50% 50%);
-}
-@media(max-width:640px){
-  #viewer-container.globe-mode{
-    clip-path:circle(13vmin at 50% 50%);
-  }
-}
 #panorama-canvas{
   width:100%;height:100%;display:block;
   cursor:grab;touch-action:none;
