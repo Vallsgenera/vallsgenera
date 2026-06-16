@@ -92,22 +92,18 @@ button{font-family:inherit;cursor:pointer}
 #splash.hidden{display:none!important}
 #splash.out{opacity:0;pointer-events:none}
 
-/* CTA bar overlaid at the bottom of the image */
+/* CTA text overlaid at the bottom of the image — no box, just text + dot */
 .splash-cta-bar{
   position:absolute;
-  bottom:3.5%;left:1%;right:1%;
-  height:72px;
-  background:rgba(255,255,255,.9);
-  border:1.5px dashed rgba(15,110,86,.5);
-  border-radius:8px;
-  display:flex;align-items:center;justify-content:center;gap:16px;
-  color:#0F6E56;font-size:13px;font-weight:700;letter-spacing:2px;
+  bottom:4%;left:50%;transform:translateX(-50%);
+  white-space:nowrap;
+  display:flex;align-items:center;justify-content:center;gap:12px;
+  color:#0F6E56;font-size:13px;font-weight:700;letter-spacing:2.5px;
   text-transform:uppercase;
-  transition:background .2s,border-color .2s;
+  pointer-events:none;
 }
-#splash:hover .splash-cta-bar{
-  background:rgba(255,255,255,.96);
-  border-color:rgba(15,110,86,.8);
+@media(max-width:640px){
+  .splash-cta-bar{bottom:3%;font-size:11px}
 }
 .splash-cta-pulse{
   width:14px;height:14px;border-radius:50%;
@@ -132,9 +128,6 @@ button{font-family:inherit;cursor:pointer}
   0%  {opacity:0;transform:translate(-50%,-50%) scale(.6)}
   28% {opacity:.75}
   100%{opacity:0;transform:translate(-50%,-50%) scale(1.25)}
-}
-@media(max-width:640px){
-  .splash-cta-bar{bottom:2%;left:2%;right:2%;height:58px;font-size:11px}
 }
 
 /* ── Sidebar drawer (escenes) ── */

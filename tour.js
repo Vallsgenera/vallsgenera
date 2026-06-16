@@ -1107,29 +1107,25 @@ window.addEventListener('DOMContentLoaded', () => {
     if (splash) {
       splash.classList.remove('hidden');
       splash.addEventListener('click', () => {
-        // Stop auto-rotation
         if (window.tour) window.tour.globeMode = false;
 
-        // Fade out splash
+        // Fade out the splash image
         splash.classList.add('out');
 
-        // Expand globe from centre of screen
-        const origin = '50% 50%';
+        // Force-commit the current clip-path (from globe-mode class) as the
+        // animation start point, then immediately transition to full-screen.
+        // void offsetWidth is the reliable way to flush styles before animating.
+        vc.style.clipPath = 'circle(19vmin at 50% 50%)';
+        void vc.offsetWidth; // force reflow → browser commits starting state
+        vc.style.transition = 'clip-path 3s cubic-bezier(0.2,0,0.05,1)';
+        vc.style.clipPath = 'circle(150vmax at 50% 50%)';
+        vc.classList.remove('globe-mode');
 
-        // Globe expansion: force starting state inline, then animate to full-screen circle
-        vc.style.clipPath = `circle(19vmin at ${origin})`;
-        requestAnimationFrame(() => requestAnimationFrame(() => {
-          vc.style.transition = 'clip-path 1.5s cubic-bezier(0.15,0,0.05,1)';
-          vc.style.clipPath    = `circle(150vmax at ${origin})`;
-          vc.classList.remove('globe-mode');
-        }));
-
-        // Cleanup after animation completes
         setTimeout(() => {
           splash.classList.add('hidden');
           vc.style.transition = '';
-          vc.style.clipPath    = '';
-        }, 1800);
+          vc.style.clipPath = '';
+        }, 3500);
       }, { once: true });
     }
   }
