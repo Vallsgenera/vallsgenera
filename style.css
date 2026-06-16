@@ -67,13 +67,13 @@ button{font-family:inherit;cursor:pointer}
   position:fixed;top:0;right:0;bottom:0;left:0;
   overflow:hidden;
 }
-/* Globe-mode: panorama clipped to sphere in the right column of the splash */
+/* Globe-mode: panorama clipped to a sphere centred on screen */
 #viewer-container.globe-mode{
-  clip-path:circle(19vmin at 77.5% 50%);
+  clip-path:circle(19vmin at 50% 50%);
 }
 @media(max-width:640px){
   #viewer-container.globe-mode{
-    clip-path:circle(13vmin at 50% 90px);
+    clip-path:circle(13vmin at 50% 50%);
   }
 }
 #panorama-canvas{
@@ -85,115 +85,29 @@ button{font-family:inherit;cursor:pointer}
 /* ── Splash / Landing page ── */
 #splash{
   position:fixed;inset:0;z-index:860;
-  display:flex;flex-direction:column;
-  background:#f5f4f0;
+  background:url('images/landing.jpg') center/cover no-repeat,#0d4035;
   cursor:pointer;
-  transition:opacity .8s cubic-bezier(.4,0,.2,1);
+  transition:opacity .5s ease;
 }
 #splash.hidden{display:none!important}
 #splash.out{opacity:0;pointer-events:none}
 
-.splash-grid{
-  flex:1;min-height:0;
-  display:grid;grid-template-columns:55% 45%;
-  position:relative;
-}
-.splash-left{
-  background:#f5f4f0;
-  display:flex;flex-direction:column;
-  padding:44px 52px 32px;
-}
-/* Right column transparent — live rotating globe (viewer below splash) shows through */
-.splash-right{
-  position:relative;overflow:visible;
-  background:transparent;
-}
-/* Dark green background only behind right column (not left) */
-.splash-grid::after{
-  content:'';
-  position:absolute;top:0;right:0;bottom:0;
-  width:45%;background:#0d2d22;
-  pointer-events:none;z-index:-1;
-}
-/* Radial glow centred on the globe */
-.splash-photo-oval{
-  position:absolute;
-  width:44vmin;height:44vmin;
-  left:50%;top:50%;transform:translate(-50%,-50%);
-  background:radial-gradient(circle,rgba(15,110,86,.4) 0%,transparent 70%);
-  border-radius:50%;
-  pointer-events:none;
-}
-/* Ring frame around the globe */
-.splash-right::after{
-  content:'';
-  position:absolute;
-  width:calc(38vmin + 10px);height:calc(38vmin + 10px);
-  border-radius:50%;
-  border:1.5px solid rgba(15,110,86,.55);
-  top:50%;left:50%;transform:translate(-50%,-50%);
-  box-shadow:0 0 50px rgba(15,110,86,.3);
-  pointer-events:none;
-}
-/* Logo */
-.splash-logo{
-  display:flex;align-items:center;gap:10px;
-  margin-bottom:auto;padding-bottom:32px;
-}
-.splash-logo-emblem{display:flex;align-items:center;justify-content:center}
-.splash-logo-wordmark{
-  font-size:15px;font-weight:800;letter-spacing:1.5px;
-  color:#0F6E56;
-}
-/* Hero */
-.splash-hero-text{display:flex;flex-direction:column;justify-content:center;flex:1}
-.splash-eyebrow{
-  font-size:12px;font-weight:700;letter-spacing:3.5px;
-  color:#1a2e28;margin-bottom:4px;
-}
-.splash-brand{
-  font-size:clamp(38px,4.8vw,68px);font-weight:900;
-  color:#0F6E56;letter-spacing:-1px;line-height:1;
-  margin-bottom:14px;
-}
-.splash-rule{
-  width:44px;height:3px;background:#0F6E56;
-  border-radius:2px;margin-bottom:20px;
-}
-.splash-desc{
-  font-size:14px;color:#3a4a44;line-height:1.7;
-  max-width:400px;margin-bottom:40px;
-}
-/* Feature row */
-.splash-feats{
-  display:flex;align-items:center;
-  flex-wrap:wrap;row-gap:14px;
-}
-.splash-feat{
-  display:flex;flex-direction:column;align-items:center;gap:6px;
-  padding:0 18px;text-align:center;
-}
-.splash-feat:first-child{padding-left:0}
-.splash-feat span{font-size:11px;font-weight:500;color:#3a4a44;line-height:1.3}
-.splash-feat-sep{
-  width:1px;height:36px;
-  background:rgba(15,110,86,.2);flex-shrink:0;
-}
-/* CTA bar */
+/* CTA bar overlaid at the bottom of the image */
 .splash-cta-bar{
+  position:absolute;
+  bottom:3.5%;left:1%;right:1%;
   height:72px;
-  background:white;
-  border:1.5px dashed rgba(15,110,86,.45);
-  margin:0 16px 16px;
+  background:rgba(255,255,255,.9);
+  border:1.5px dashed rgba(15,110,86,.5);
   border-radius:8px;
   display:flex;align-items:center;justify-content:center;gap:16px;
   color:#0F6E56;font-size:13px;font-weight:700;letter-spacing:2px;
   text-transform:uppercase;
-  flex-shrink:0;
   transition:background .2s,border-color .2s;
 }
 #splash:hover .splash-cta-bar{
-  background:rgba(15,110,86,.05);border-color:rgba(15,110,86,.7);
+  background:rgba(255,255,255,.96);
+  border-color:rgba(15,110,86,.8);
 }
 .splash-cta-pulse{
   width:14px;height:14px;border-radius:50%;
@@ -219,23 +133,8 @@ button{font-family:inherit;cursor:pointer}
   28% {opacity:.75}
   100%{opacity:0;transform:translate(-50%,-50%) scale(1.25)}
 }
-/* Responsive: stack vertically on small screens */
 @media(max-width:640px){
-  .splash-grid{
-    display:flex;flex-direction:column;
-    position:relative;
-  }
-  .splash-right{order:0;height:180px;flex-shrink:0}
-  .splash-left{order:1;padding:20px 20px 14px;flex:1}
-  .splash-grid::after{width:100%;top:0;right:0;bottom:auto;height:180px}
-  .splash-right::after{
-    width:calc(26vmin + 10px);height:calc(26vmin + 10px);
-  }
-  .splash-photo-oval{width:30vmin;height:30vmin}
-  .splash-brand{font-size:clamp(28px,8vw,44px)}
-  .splash-cta-bar{margin:0 10px 10px;height:56px;font-size:11px}
-  .splash-desc{margin-bottom:20px;font-size:13px}
-  .splash-feats{row-gap:10px}
+  .splash-cta-bar{bottom:2%;left:2%;right:2%;height:58px;font-size:11px}
 }
 
 /* ── Sidebar drawer (escenes) ── */

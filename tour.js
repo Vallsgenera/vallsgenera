@@ -1094,7 +1094,7 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   function startTour() {
-    // Clip the panorama to a sphere in the right column (shows through transparent splash-right)
+    // Clip the panorama to a spinning globe centred on screen (behind the splash image)
     const vc = document.getElementById('viewer-container');
     vc.classList.add('globe-mode');
 
@@ -1113,9 +1113,8 @@ window.addEventListener('DOMContentLoaded', () => {
         // Fade out splash
         splash.classList.add('out');
 
-        // Determine globe centre position for expansion
-        const isMobile = window.innerWidth <= 640;
-        const origin   = isMobile ? '50% 90px' : '77.5% 50%';
+        // Expand globe from centre of screen
+        const origin = '50% 50%';
 
         // Globe expansion: force starting state inline, then animate to full-screen circle
         vc.style.clipPath = `circle(19vmin at ${origin})`;
