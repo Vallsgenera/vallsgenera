@@ -80,105 +80,131 @@ button{font-family:inherit;cursor:pointer}
 /* ── Splash / Landing page ── */
 #splash{
   position:fixed;inset:0;z-index:860;
-  background:#060e0b;
-  background-image:radial-gradient(rgba(15,110,86,.08) 1px, transparent 1px);
-  background-size:28px 28px;
-  display:flex;align-items:center;justify-content:center;
+  display:flex;flex-direction:column;
+  background:#f5f4f0;
   cursor:pointer;
   transition:opacity .8s cubic-bezier(.4,0,.2,1);
 }
 #splash.hidden{display:none!important}
 #splash.out{opacity:0;pointer-events:none}
-#splash::after{
-  content:'';position:absolute;inset:0;
-  background:radial-gradient(ellipse at 50% 50%, rgba(15,110,86,.12) 0%, transparent 55%),
-             radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,.55) 100%);
+
+.splash-grid{
+  flex:1;min-height:0;
+  display:grid;grid-template-columns:55% 45%;
+}
+.splash-left{
+  background:#f5f4f0;
+  display:flex;flex-direction:column;
+  padding:44px 52px 32px;
+}
+.splash-right{
+  position:relative;overflow:hidden;
+  background:#0d4035;
+}
+#splash-photo{
+  background-size:cover;
+  background-position:center;
+}
+.splash-photo-oval{
+  position:absolute;
+  width:340px;height:480px;
+  left:-100px;top:50%;transform:translateY(-50%);
+  background:rgba(100,200,140,.28);
+  border-radius:50%;
+  filter:blur(2px);
   pointer-events:none;
 }
-
-.splash-inner{
-  position:relative;z-index:1;
-  display:flex;flex-direction:column;
-  align-items:center;gap:12px;
-  text-align:center;
-  padding:40px 28px;
+/* Logo */
+.splash-logo{
+  display:flex;align-items:center;gap:10px;
+  margin-bottom:auto;padding-bottom:32px;
 }
-
-.splash-logo-box{
-  width:78px;height:78px;border-radius:20px;
-  background:rgba(15,110,86,.22);
-  border:2px solid rgba(15,110,86,.55);
-  display:flex;align-items:center;justify-content:center;
-  box-shadow:0 0 36px rgba(15,110,86,.35);
-  margin-bottom:6px;
+.splash-logo-emblem{display:flex;align-items:center;justify-content:center}
+.splash-logo-wordmark{
+  font-size:15px;font-weight:800;letter-spacing:1.5px;
+  color:#0F6E56;
 }
-.splash-v{
-  font-size:38px;font-weight:800;color:white;letter-spacing:-1px;
+/* Hero */
+.splash-hero-text{display:flex;flex-direction:column;justify-content:center;flex:1}
+.splash-eyebrow{
+  font-size:12px;font-weight:700;letter-spacing:3.5px;
+  color:#1a2e28;margin-bottom:4px;
 }
-
-.splash-title{
-  font-size:clamp(36px,6vw,58px);font-weight:800;color:white;
-  letter-spacing:-1.5px;line-height:1;
-  text-shadow:0 2px 24px rgba(0,0,0,.5);
+.splash-brand{
+  font-size:clamp(38px,4.8vw,68px);font-weight:900;
+  color:#0F6E56;letter-spacing:-1px;line-height:1;
+  margin-bottom:14px;
 }
-
-.splash-subtitle{
-  font-size:13px;color:rgba(255,255,255,.4);
-  line-height:1.5;max-width:300px;margin-top:2px;
+.splash-rule{
+  width:44px;height:3px;background:#0F6E56;
+  border-radius:2px;margin-bottom:20px;
 }
-
-.splash-badge{
-  display:inline-block;
-  font-size:10.5px;font-weight:700;letter-spacing:1.2px;
-  text-transform:uppercase;color:var(--primary-light);
-  background:rgba(15,110,86,.18);
-  border:1px solid rgba(15,110,86,.45);
-  padding:5px 15px;border-radius:20px;margin-top:2px;
+.splash-desc{
+  font-size:14px;color:#3a4a44;line-height:1.7;
+  max-width:400px;margin-bottom:40px;
 }
-
-.splash-sep{
-  width:1px;height:36px;margin:8px 0;
-  background:linear-gradient(to bottom, transparent, rgba(255,255,255,.15), transparent);
+/* Feature row */
+.splash-feats{
+  display:flex;align-items:center;
+  flex-wrap:wrap;row-gap:14px;
 }
-
-/* Animated tap indicator */
-.splash-tap{
-  width:62px;height:62px;
-  display:flex;align-items:center;justify-content:center;
-  position:relative;
+.splash-feat{
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+  padding:0 18px;text-align:center;
 }
-.splash-tap::before,.splash-tap::after{
+.splash-feat:first-child{padding-left:0}
+.splash-feat span{font-size:11px;font-weight:500;color:#3a4a44;line-height:1.3}
+.splash-feat-sep{
+  width:1px;height:36px;
+  background:rgba(15,110,86,.2);flex-shrink:0;
+}
+/* CTA bar */
+.splash-cta-bar{
+  height:72px;
+  background:white;
+  border:1.5px dashed rgba(15,110,86,.45);
+  margin:0 16px 16px;
+  border-radius:8px;
+  display:flex;align-items:center;justify-content:center;gap:16px;
+  color:#0F6E56;font-size:13px;font-weight:700;letter-spacing:2px;
+  text-transform:uppercase;
+  flex-shrink:0;
+  transition:background .2s,border-color .2s;
+}
+#splash:hover .splash-cta-bar{
+  background:rgba(15,110,86,.05);border-color:rgba(15,110,86,.7);
+}
+.splash-cta-pulse{
+  width:14px;height:14px;border-radius:50%;
+  background:#0F6E56;position:relative;flex-shrink:0;
+}
+.splash-cta-pulse::before,.splash-cta-pulse::after{
   content:'';position:absolute;border-radius:50%;
-  border:1.5px solid rgba(255,255,255,.4);
+  border:1.5px solid rgba(15,110,86,.45);
+  top:50%;left:50%;
 }
-.splash-tap::before{
+.splash-cta-pulse::before{
+  width:24px;height:24px;
+  animation:splash-ring 2s ease-out infinite;
+  transform:translate(-50%,-50%);
+}
+.splash-cta-pulse::after{
   width:36px;height:36px;
-  animation:splash-ring 2.2s ease-out infinite;
-}
-.splash-tap::after{
-  width:56px;height:56px;
-  animation:splash-ring 2.2s ease-out infinite .42s;
-}
-.splash-tap-dot{
-  width:18px;height:18px;border-radius:50%;
-  background:rgba(255,255,255,.9);
-  animation:splash-dot-pulse 2.2s ease-in-out infinite;
+  animation:splash-ring 2s ease-out infinite .4s;
+  transform:translate(-50%,-50%);
 }
 @keyframes splash-ring{
-  0%  {opacity:0;transform:scale(.6)}
+  0%  {opacity:0;transform:translate(-50%,-50%) scale(.6)}
   28% {opacity:.75}
-  100%{opacity:0;transform:scale(1.25)}
+  100%{opacity:0;transform:translate(-50%,-50%) scale(1.25)}
 }
-@keyframes splash-dot-pulse{
-  0%,100%{transform:scale(1);opacity:.9}
-  50%    {transform:scale(.84);opacity:.65}
-}
-
-.splash-cta-text{
-  font-size:12px;font-weight:600;
-  color:rgba(255,255,255,.55);
-  letter-spacing:1.6px;text-transform:uppercase;
-  margin-top:2px;
+/* Responsive: stack vertically on small screens */
+@media(max-width:640px){
+  .splash-grid{grid-template-columns:1fr;grid-template-rows:1fr 180px}
+  .splash-left{padding:28px 24px 20px}
+  .splash-right{order:-1}
+  .splash-brand{font-size:clamp(32px,8vw,48px)}
+  .splash-cta-bar{margin:0 10px 10px;height:60px}
 }
 
 /* ── Sidebar drawer (escenes) ── */

@@ -422,16 +422,21 @@ class Studio {
       const mesh = new THREE.Mesh(this._buildDecalGeo(decal), mat);
       this.threeScene.add(mesh);
       this._decalMeshes[decal.id] = mesh;
-      const setTex = src => new THREE.TextureLoader().load(src, tex => {
-        tex.minFilter = THREE.LinearFilter; mat.map = tex; mat.needsUpdate = true;
-      });
-      PhotoStore.get('dcl-' + decal.id).then(blob =>
-        blob ? setTex(URL.createObjectURL(blob)) : (decal.imageUrl && setTex(decal.imageUrl))
-      ).catch(() => decal.imageUrl && setTex(decal.imageUrl));
+      if (decal.decalType === 'text') {
+        mat.map = this._createTextDecalTex(decal);
+        mat.needsUpdate = true;
+      } else {
+        const setTex = src => new THREE.TextureLoader().load(src, tex => {
+          tex.minFilter = THREE.LinearFilter; mat.map = tex; mat.needsUpdate = true;
+        });
+        PhotoStore.get('dcl-' + decal.id).then(blob =>
+          blob ? setTex(URL.createObjectURL(blob)) : (decal.imageUrl && setTex(decal.imageUrl))
+        ).catch(() => decal.imageUrl && setTex(decal.imageUrl));
+      }
     });
   }
 
-  updateDecalMesh(decal) {
+  updateDecalMesh(decal, updateTex = false) {
     const mesh = this._decalMeshes[decal.id];
     if (!mesh) return;
     const c = decal.corners;
@@ -442,6 +447,10 @@ class Studio {
     const attr = mesh.geometry.getAttribute('position');
     attr.array.set([...tl,...bl,...tr,...tr,...bl,...br]);
     attr.needsUpdate = true;
+    if (updateTex && decal.decalType === 'text') {
+      mesh.material.map = this._createTextDecalTex(decal);
+      mesh.material.needsUpdate = true;
+    }
   }
 
   renderDecalHandles() {
@@ -517,10 +526,11 @@ class Studio {
     (this.currentScene.decals || []).forEach((d, i) => {
       const item = document.createElement('div');
       item.className = 'hs-mini-item' + (this.selectedDecalId === d.id ? ' selected' : '');
+      const isText = d.decalType === 'text';
       item.innerHTML = `
-        <span class="hs-mini-dot" style="background:#f59e0b"></span>
-        <span class="hs-mini-name">Imatge ${i+1}</span>
-        <span class="hs-mini-type">overlay</span>`;
+        <span class="hs-mini-dot" style="background:#f59e0b;font-size:8px;font-weight:800;color:#000;display:flex;align-items:center;justify-content:center">${isText ? 'T' : ''}</span>
+        <span class="hs-mini-name">${isText ? (d.content || 'Text') : `Imatge ${i+1}`}</span>
+        <span class="hs-mini-type">${isText ? 'text' : 'imatge'}</span>`;
       item.addEventListener('click', () => this.selectDecal(d.id));
       list.appendChild(item);
     });
@@ -534,6 +544,27 @@ class Studio {
     document.getElementById('decal-props-section').classList.remove('hidden');
     const decal = (this.currentScene.decals || []).find(d => d.id === id);
     if (!decal) return;
+
+    // Show type-specific area
+    const isText = decal.decalType === 'text';
+    document.getElementById('decal-img-area').classList.toggle('hidden', isText);
+    document.getElementById('decal-text-area').classList.toggle('hidden', !isText);
+
+    // Populate text fields
+    if (isText) {
+      const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.value = val ?? el.value; };
+      const setBool = (id, val) => { const el = document.getElementById(id); if (el) el.checked = !!val; };
+      setEl('decal-content', decal.content || '');
+      setEl('decal-fontsize', decal.fontSize || 80);
+      document.getElementById('dcl-fs-val').textContent = (decal.fontSize || 80) + 'px';
+      setEl('decal-color', decal.color || '#ffffff');
+      setEl('decal-bg-color', decal.bgColor || '#000000');
+      setEl('decal-bg-opacity', decal.bgOpacity ?? 0);
+      document.getElementById('dcl-bg-val').textContent = (decal.bgOpacity ?? 0) + '%';
+      setBool('decal-bold', decal.bold);
+      setBool('decal-italic', decal.italic);
+    }
+
     const op = Math.round((decal.opacity ?? 1) * 100);
     const opEl = document.getElementById('decal-opacity');
     const opVEl = document.getElementById('decal-opacity-val');
@@ -568,6 +599,57 @@ class Studio {
     this.selectDecal(id);
     this.saveData(true);
     this.showToast('Imatge afegida — arrossega les cantonades grogues per ajustar');
+  }
+
+  addTextDecal() {
+    const center = { lon: this.lon, lat: this.lat };
+    const W = 20, H = 10;
+    const id = 'dcl-' + Date.now().toString(36);
+    const decal = {
+      id,
+      decalType: 'text',
+      content: 'Text',
+      fontSize: 80,
+      color: '#ffffff',
+      bgColor: '#000000',
+      bgOpacity: 0,
+      bold: false,
+      italic: false,
+      corners: {
+        tl: { lon: center.lon - W, lat: center.lat + H },
+        tr: { lon: center.lon + W, lat: center.lat + H },
+        br: { lon: center.lon + W, lat: center.lat - H },
+        bl: { lon: center.lon - W, lat: center.lat - H }
+      },
+      opacity: 1.0
+    };
+    if (!this.currentScene.decals) this.currentScene.decals = [];
+    this.currentScene.decals.push(decal);
+    this.renderDecals();
+    this.renderDecalMiniList();
+    this.selectDecal(id);
+    this.saveData(true);
+    this.showToast('Text afegit — edita el contingut i arrossega les cantonades grogues');
+  }
+
+  _createTextDecalTex(decal) {
+    const W = 1024, H = 512;
+    const cv = document.createElement('canvas');
+    cv.width = W; cv.height = H;
+    const ctx = cv.getContext('2d');
+    if ((decal.bgOpacity || 0) > 0) {
+      const hex = decal.bgColor || '#000000';
+      const rr = parseInt(hex.slice(1,3),16), gg = parseInt(hex.slice(3,5),16), bb = parseInt(hex.slice(5,7),16);
+      ctx.fillStyle = `rgba(${rr},${gg},${bb},${decal.bgOpacity/100})`;
+      ctx.fillRect(0, 0, W, H);
+    }
+    const fs = Math.max(20, Math.min(400, decal.fontSize || 80));
+    ctx.font = `${decal.italic?'italic ':''}${decal.bold?'bold ':''}${fs}px system-ui,sans-serif`;
+    ctx.fillStyle = decal.color || '#ffffff';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.shadowColor = 'rgba(0,0,0,.65)'; ctx.shadowBlur = 10;
+    ctx.fillText(decal.content || '', W/2, H/2);
+    return new THREE.CanvasTexture(cv);
   }
 
   deleteSelectedDecal() {
@@ -617,13 +699,28 @@ class Studio {
       const item = document.createElement('div');
       const isHidden = s.visible === false;
       item.className = 'scene-item' + (i === this.currentIdx ? ' active' : '') + (isHidden ? ' scene-hidden' : '');
+
+      const eyeOpen = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+      const eyeClosed = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
+
       item.innerHTML = `
-        <div class="scene-color-dot" style="background:${s.color}">
-          ${s.image || this._photoUrls[s.id] ? '📷' : ''}
+        <div class="scene-thumb-row">
+          <div class="scene-color-dot" style="background:${s.color}">
+            ${s.image || this._photoUrls[s.id] ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.7)" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>' : ''}
+          </div>
+          <button class="scene-eye-btn" title="${isHidden ? 'Mostrar al tour' : 'Ocultar del tour'}">${isHidden ? eyeClosed : eyeOpen}</button>
         </div>
         <div class="scene-item-name">${s.name}</div>
         <div class="scene-item-count">${s.hotspots.length} hotspot${s.hotspots.length !== 1 ? 's' : ''}</div>
       `;
+
+      const eyeBtn = item.querySelector('.scene-eye-btn');
+      eyeBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        s.visible = (s.visible !== false) ? false : true;
+        this.renderSceneList();
+        this.saveData(true);
+      });
       item.addEventListener('click', () => this.switchScene(i));
       list.appendChild(item);
     });
@@ -710,9 +807,6 @@ class Studio {
     // No aboquem el data URI (enorme) al camp de ruta
     document.getElementById('prop-image-path').value = imgIsEmbedded ? '' : (s.image || '');
 
-    // Visibility toggle
-    const visEl = document.getElementById('prop-visible');
-    if (visEl) visEl.checked = (s.visible !== false);
     document.getElementById('photo-name').textContent =
       this._photoUrls[s.id]
         ? (s._photoFilename || 'Foto carregada')
@@ -978,9 +1072,6 @@ class Studio {
     const pathVal = document.getElementById('prop-image-path').value.trim();
     if (pathVal) s.image = pathVal;
     else if (!(typeof s.image === 'string' && s.image.startsWith('data:'))) s.image = undefined;
-    // Visibility
-    const visEl = document.getElementById('prop-visible');
-    if (visEl) s.visible = visEl.checked;
     this.renderSceneList();
     document.getElementById('status-scene').textContent = s.name;
   }
@@ -1233,13 +1324,6 @@ class Studio {
       else if (!(typeof s.image === 'string' && s.image.startsWith('data:'))) s.image = undefined;
     });
 
-    // Visibility toggle: live save
-    document.getElementById('prop-visible').addEventListener('change', e => {
-      this.currentScene.visible = e.target.checked;
-      this.renderSceneList();
-      this.saveData(true);
-    });
-
     // Photo upload
     const photoInput = document.getElementById('prop-photo');
     photoInput.addEventListener('change', e => this.loadPhoto(e.target.files[0]));
@@ -1383,6 +1467,31 @@ class Studio {
 
     // Decal: delete button
     document.getElementById('btn-delete-decal').addEventListener('click', () => this.deleteSelectedDecal());
+
+    // Decal: text button
+    document.getElementById('decal-add-text-btn').addEventListener('click', () => this.addTextDecal());
+
+    // Decal: text fields live update
+    const updateTextDecal = () => {
+      const decal = (this.currentScene.decals || []).find(d => d.id === this.selectedDecalId);
+      if (!decal || decal.decalType !== 'text') return;
+      decal.content   = document.getElementById('decal-content')?.value || '';
+      decal.fontSize  = parseInt(document.getElementById('decal-fontsize')?.value) || 80;
+      decal.color     = document.getElementById('decal-color')?.value || '#ffffff';
+      decal.bgColor   = document.getElementById('decal-bg-color')?.value || '#000000';
+      decal.bgOpacity = parseInt(document.getElementById('decal-bg-opacity')?.value) || 0;
+      decal.bold      = document.getElementById('decal-bold')?.checked || false;
+      decal.italic    = document.getElementById('decal-italic')?.checked || false;
+      this.updateDecalMesh(decal, true);
+      this.renderDecalMiniList();
+      this.saveData(true);
+    };
+    ['decal-content','decal-fontsize','decal-color','decal-bg-color','decal-bg-opacity'].forEach(id => {
+      document.getElementById(id)?.addEventListener('input', updateTextDecal);
+    });
+    ['decal-bold','decal-italic'].forEach(id => {
+      document.getElementById(id)?.addEventListener('change', updateTextDecal);
+    });
 
     // Hotspot props: save / delete / back
     document.getElementById('btn-save-hs').addEventListener('click', () => this.saveSelectedHotspot());

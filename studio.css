@@ -117,18 +117,34 @@ input,textarea,select{font-family:inherit;font-size:13px}
 }
 .scene-item:hover{background:rgba(255,255,255,0.05)}
 .scene-item.active{background:rgba(15,110,86,0.15);border-color:var(--accent)}
+.scene-thumb-row{
+  display:flex;align-items:flex-start;gap:4px;margin-bottom:2px;
+}
 .scene-color-dot{
-  width:100%;height:28px;border-radius:4px;margin-bottom:4px;
+  flex:1;height:28px;border-radius:4px;
   display:flex;align-items:center;justify-content:center;
-  font-size:18px;flex-shrink:0;
+  font-size:14px;flex-shrink:0;
   border:1px solid rgba(255,255,255,.1);
 }
+.scene-eye-btn{
+  flex-shrink:0;
+  width:24px;height:28px;border-radius:4px;
+  background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.1);
+  color:var(--text-muted);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;
+  transition:background var(--dur),color var(--dur),border-color var(--dur);
+}
+.scene-eye-btn:hover{background:rgba(255,255,255,.14);color:white;border-color:rgba(255,255,255,.25)}
+.scene-hidden .scene-eye-btn{color:rgba(255,80,80,.6)}
 .scene-item-name{
   font-size:12px;font-weight:500;color:var(--text);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
 .scene-item-count{font-size:10.5px;color:var(--text-muted)}
 .scene-item.active .scene-item-name{color:white}
+.scene-item.scene-hidden{opacity:.55}
 
 /* ── Center viewer ── */
 #studio-viewer{
@@ -574,10 +590,6 @@ input,textarea,select{font-family:inherit;font-size:13px}
 }
 .pp-toggle-label{font-size:12px;color:var(--text-muted)}
 
-/* Scene list: hidden scenes appear dimmed */
-.scene-item.scene-hidden .scene-item-name::after{
-  content:' · oculta';font-size:10px;font-weight:400;opacity:.5;
-}
 
 /* ── Sections hidden ── */
 .hidden{display:none!important}

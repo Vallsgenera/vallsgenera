@@ -124,15 +124,6 @@
           <input type="text" id="prop-image-path" placeholder="images/nom-escena.jpg">
         </div>
 
-        <div class="pp-field">
-          <label>Visible al menú del Tour</label>
-          <label class="pp-toggle">
-            <input type="checkbox" id="prop-visible" checked>
-            <span class="pp-toggle-track"><span class="pp-toggle-thumb"></span></span>
-            <span class="pp-toggle-label">Visible a la barra lateral</span>
-          </label>
-        </div>
-
         <div class="pp-hotspot-list">
           <div class="phl-header">
             <span>Hotspots</span>
@@ -143,16 +134,21 @@
 
         <div class="pp-decal-list">
           <div class="phl-header">
-            <span>Imatges a la panoràmica</span>
-            <label class="phl-add-btn" title="Afegir imatge overlay">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-              </svg>
-              <input type="file" id="decal-img-input" accept=".jpg,.jpeg,.png,.webp" style="display:none">
-            </label>
+            <span>Overlays a la panoràmica</span>
+            <div style="display:flex;gap:4px">
+              <button class="phl-add-btn" id="decal-add-text-btn" title="Afegir text overlay">
+                <span style="font-size:11px;font-weight:800;line-height:1">T</span>
+              </button>
+              <label class="phl-add-btn" title="Afegir imatge overlay">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+                </svg>
+                <input type="file" id="decal-img-input" accept=".jpg,.jpeg,.png,.webp" style="display:none">
+              </label>
+            </div>
           </div>
           <div id="decal-mini-list"></div>
-          <p class="decal-hint">Afegeix imatges per incrustar-les a la panoràmica (cartells, pantalles, quadres, etc.).</p>
+          <p class="decal-hint">Afegeix imatges o textos per incrustar-los a la panoràmica. Arrossega les cantonades grogues per ajustar la perspectiva.</p>
         </div>
 
         <button id="btn-delete-scene" class="danger-btn">
@@ -175,15 +171,59 @@
           </button>
         </div>
 
-        <div class="pp-field">
-          <label>Imatge <span class="label-hint">(substituir)</span></label>
-          <div class="photo-drop" id="decal-replace-drop">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <rect x="3" y="3" width="18" height="18" rx="2"/>
-              <circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
-            </svg>
-            <p id="decal-img-name">Imatge carregada</p>
-            <input type="file" id="decal-replace-input" accept=".jpg,.jpeg,.png,.webp">
+        <!-- Image-specific fields -->
+        <div id="decal-img-area">
+          <div class="pp-field">
+            <label>Imatge <span class="label-hint">(substituir)</span></label>
+            <div class="photo-drop" id="decal-replace-drop">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+              </svg>
+              <p id="decal-img-name">Imatge carregada</p>
+              <input type="file" id="decal-replace-input" accept=".jpg,.jpeg,.png,.webp">
+            </div>
+          </div>
+        </div>
+
+        <!-- Text-specific fields -->
+        <div id="decal-text-area" class="hidden">
+          <div class="pp-field">
+            <label>Text</label>
+            <input type="text" id="decal-content" placeholder="Text a mostrar a la panoràmica">
+          </div>
+          <div class="pp-field">
+            <label>Mida del text</label>
+            <div style="display:flex;gap:8px;align-items:center">
+              <input type="range" id="decal-fontsize" min="20" max="300" value="80" style="flex:1"
+                oninput="document.getElementById('dcl-fs-val').textContent=this.value+'px'">
+              <span id="dcl-fs-val" style="min-width:34px;text-align:right;font-size:12px">80px</span>
+            </div>
+          </div>
+          <div class="pp-field">
+            <label>Color del text</label>
+            <div class="color-row">
+              <input type="color" id="decal-color" value="#ffffff">
+            </div>
+          </div>
+          <div class="pp-field">
+            <label>Fons</label>
+            <div class="color-row">
+              <input type="color" id="decal-bg-color" value="#000000">
+              <input type="range" id="decal-bg-opacity" min="0" max="100" value="0" style="flex:1"
+                oninput="document.getElementById('dcl-bg-val').textContent=this.value+'%'">
+              <span id="dcl-bg-val" style="min-width:30px;font-size:12px">0%</span>
+            </div>
+          </div>
+          <div class="pp-field">
+            <div style="display:flex;gap:16px">
+              <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px">
+                <input type="checkbox" id="decal-bold"> <b>Negreta</b>
+              </label>
+              <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px">
+                <input type="checkbox" id="decal-italic"> <i>Cursiva</i>
+              </label>
+            </div>
           </div>
         </div>
 
@@ -199,7 +239,7 @@
         <div class="pp-field">
           <p class="decal-corner-hint">
             <strong>Ajusta el trapezi:</strong> arrossega les cantonades
-            <span class="dcl-handle-sample"></span> al visor per adaptar la imatge a la perspectiva de la foto.
+            <span class="dcl-handle-sample"></span> al visor.
           </p>
         </div>
 
@@ -208,7 +248,7 @@
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
             </svg>
-            Eliminar imatge incrustada
+            Eliminar overlay
           </button>
         </div>
       </div>

@@ -803,6 +803,27 @@ class VirtualTour {
       const th  = THREE.MathUtils.degToRad(lon);
       return [r*Math.sin(phi)*Math.cos(th), r*Math.cos(phi), r*Math.sin(phi)*Math.sin(th)];
     };
+
+    const makeTextTex = decal => {
+      const W = 1024, H = 512;
+      const cv = document.createElement('canvas');
+      cv.width = W; cv.height = H;
+      const ctx = cv.getContext('2d');
+      if ((decal.bgOpacity || 0) > 0) {
+        const hex = decal.bgColor || '#000000';
+        const rr = parseInt(hex.slice(1,3),16), gg = parseInt(hex.slice(3,5),16), bb = parseInt(hex.slice(5,7),16);
+        ctx.fillStyle = `rgba(${rr},${gg},${bb},${decal.bgOpacity/100})`;
+        ctx.fillRect(0, 0, W, H);
+      }
+      const fs = Math.max(20, Math.min(400, decal.fontSize || 80));
+      ctx.font = `${decal.italic?'italic ':''}${decal.bold?'bold ':''}${fs}px system-ui,sans-serif`;
+      ctx.fillStyle = decal.color || '#ffffff';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.shadowColor = 'rgba(0,0,0,.65)'; ctx.shadowBlur = 10;
+      ctx.fillText(decal.content || '', W/2, H/2);
+      return new THREE.CanvasTexture(cv);
+    };
+
     (scene.decals || []).forEach(decal => {
       const c = decal.corners;
       if (!c) return;
@@ -822,13 +843,19 @@ class VirtualTour {
       const mesh = new THREE.Mesh(geo, mat);
       this.threeScene.add(mesh);
       this._decalMeshes.push(mesh);
-      const loadTex = src => new THREE.TextureLoader().load(src, tex => {
-        tex.minFilter = THREE.LinearFilter;
-        mat.map = tex; mat.needsUpdate = true;
-      });
-      PhotoStore.get('dcl-' + decal.id)
-        .then(blob => blob ? loadTex(URL.createObjectURL(blob)) : (decal.imageUrl && loadTex(decal.imageUrl)))
-        .catch(() => decal.imageUrl && loadTex(decal.imageUrl));
+
+      if (decal.decalType === 'text') {
+        mat.map = makeTextTex(decal);
+        mat.needsUpdate = true;
+      } else {
+        const loadTex = src => new THREE.TextureLoader().load(src, tex => {
+          tex.minFilter = THREE.LinearFilter;
+          mat.map = tex; mat.needsUpdate = true;
+        });
+        PhotoStore.get('dcl-' + decal.id)
+          .then(blob => blob ? loadTex(URL.createObjectURL(blob)) : (decal.imageUrl && loadTex(decal.imageUrl)))
+          .catch(() => decal.imageUrl && loadTex(decal.imageUrl));
+      }
     });
   }
 
@@ -1071,6 +1098,19 @@ window.addEventListener('DOMContentLoaded', () => {
 
     window.tour = new VirtualTour();
     document.getElementById('loading').classList.add('hidden');
+
+    // Set landing photo from first visible scene
+    const firstScene = SCENES.find(s => s.visible !== false) || SCENES[0];
+    if (firstScene) {
+      const setSplashPhoto = url => {
+        const sp = document.getElementById('splash-photo');
+        if (sp) sp.style.backgroundImage = `url("${url}")`;
+      };
+      PhotoStore.get(firstScene.id).then(blob => {
+        if (blob) setSplashPhoto(URL.createObjectURL(blob));
+        else if (firstScene.image) setSplashPhoto(firstScene.image);
+      }).catch(() => { if (firstScene.image) setSplashPhoto(firstScene.image); });
+    }
 
     // Show splash
     const splash = document.getElementById('splash');
