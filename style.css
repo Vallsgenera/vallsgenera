@@ -67,9 +67,14 @@ button{font-family:inherit;cursor:pointer}
   position:fixed;top:0;right:0;bottom:0;left:0;
   overflow:hidden;
 }
-/* Globe-mode: panorama clipped to a small sphere while the splash is shown */
+/* Globe-mode: panorama clipped to sphere in the right column of the splash */
 #viewer-container.globe-mode{
-  clip-path:circle(16vmin at 50% 50%);
+  clip-path:circle(19vmin at 77.5% 50%);
+}
+@media(max-width:640px){
+  #viewer-container.globe-mode{
+    clip-path:circle(13vmin at 50% 90px);
+  }
 }
 #panorama-canvas{
   width:100%;height:100%;display:block;
@@ -91,27 +96,43 @@ button{font-family:inherit;cursor:pointer}
 .splash-grid{
   flex:1;min-height:0;
   display:grid;grid-template-columns:55% 45%;
+  position:relative;
 }
 .splash-left{
   background:#f5f4f0;
   display:flex;flex-direction:column;
   padding:44px 52px 32px;
 }
+/* Right column transparent — live rotating globe (viewer below splash) shows through */
 .splash-right{
-  position:relative;overflow:hidden;
-  background:#0d4035;
+  position:relative;overflow:visible;
+  background:transparent;
 }
-#splash-photo{
-  background-size:cover;
-  background-position:center;
+/* Dark green background only behind right column (not left) */
+.splash-grid::after{
+  content:'';
+  position:absolute;top:0;right:0;bottom:0;
+  width:45%;background:#0d2d22;
+  pointer-events:none;z-index:-1;
 }
+/* Radial glow centred on the globe */
 .splash-photo-oval{
   position:absolute;
-  width:340px;height:480px;
-  left:-100px;top:50%;transform:translateY(-50%);
-  background:rgba(100,200,140,.28);
+  width:44vmin;height:44vmin;
+  left:50%;top:50%;transform:translate(-50%,-50%);
+  background:radial-gradient(circle,rgba(15,110,86,.4) 0%,transparent 70%);
   border-radius:50%;
-  filter:blur(2px);
+  pointer-events:none;
+}
+/* Ring frame around the globe */
+.splash-right::after{
+  content:'';
+  position:absolute;
+  width:calc(38vmin + 10px);height:calc(38vmin + 10px);
+  border-radius:50%;
+  border:1.5px solid rgba(15,110,86,.55);
+  top:50%;left:50%;transform:translate(-50%,-50%);
+  box-shadow:0 0 50px rgba(15,110,86,.3);
   pointer-events:none;
 }
 /* Logo */
@@ -200,11 +221,21 @@ button{font-family:inherit;cursor:pointer}
 }
 /* Responsive: stack vertically on small screens */
 @media(max-width:640px){
-  .splash-grid{grid-template-columns:1fr;grid-template-rows:1fr 180px}
-  .splash-left{padding:28px 24px 20px}
-  .splash-right{order:-1}
-  .splash-brand{font-size:clamp(32px,8vw,48px)}
-  .splash-cta-bar{margin:0 10px 10px;height:60px}
+  .splash-grid{
+    display:flex;flex-direction:column;
+    position:relative;
+  }
+  .splash-right{order:0;height:180px;flex-shrink:0}
+  .splash-left{order:1;padding:20px 20px 14px;flex:1}
+  .splash-grid::after{width:100%;top:0;right:0;bottom:auto;height:180px}
+  .splash-right::after{
+    width:calc(26vmin + 10px);height:calc(26vmin + 10px);
+  }
+  .splash-photo-oval{width:30vmin;height:30vmin}
+  .splash-brand{font-size:clamp(28px,8vw,44px)}
+  .splash-cta-bar{margin:0 10px 10px;height:56px;font-size:11px}
+  .splash-desc{margin-bottom:20px;font-size:13px}
+  .splash-feats{row-gap:10px}
 }
 
 /* ── Sidebar drawer (escenes) ── */

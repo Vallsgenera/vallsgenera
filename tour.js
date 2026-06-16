@@ -409,6 +409,7 @@ class VirtualTour {
     this.userInteractedAt = 0;
     this.lastPinchDist = null;
     this._decalMeshes  = []; // Three.js meshes for image overlays
+    this.globeMode = false; // auto-rotates while splash is visible
 
     this.init();
   }
@@ -1056,7 +1057,8 @@ class VirtualTour {
 
   update() {
     if (!this.pointerDown) {
-      this.lon+=this.velLon; this.lat+=this.velLat;
+      this.lon += this.velLon + (this.globeMode ? 0.15 : 0);
+      this.lat += this.velLat;
       this.velLon*=.93; this.velLat*=.93;
     }
     this.lat=Math.max(-85,Math.min(85,this.lat));
@@ -1092,39 +1094,34 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   function startTour() {
-    // Clip the panorama to a small sphere BEFORE first render (hidden behind splash)
+    // Clip the panorama to a sphere in the right column (shows through transparent splash-right)
     const vc = document.getElementById('viewer-container');
     vc.classList.add('globe-mode');
 
     window.tour = new VirtualTour();
+    window.tour.globeMode = true; // start auto-rotating globe
     document.getElementById('loading').classList.add('hidden');
-
-    // Set landing photo from first visible scene
-    const firstScene = SCENES.find(s => s.visible !== false) || SCENES[0];
-    if (firstScene) {
-      const setSplashPhoto = url => {
-        const sp = document.getElementById('splash-photo');
-        if (sp) sp.style.backgroundImage = `url("${url}")`;
-      };
-      PhotoStore.get(firstScene.id).then(blob => {
-        if (blob) setSplashPhoto(URL.createObjectURL(blob));
-        else if (firstScene.image) setSplashPhoto(firstScene.image);
-      }).catch(() => { if (firstScene.image) setSplashPhoto(firstScene.image); });
-    }
 
     // Show splash
     const splash = document.getElementById('splash');
     if (splash) {
       splash.classList.remove('hidden');
       splash.addEventListener('click', () => {
+        // Stop auto-rotation
+        if (window.tour) window.tour.globeMode = false;
+
         // Fade out splash
         splash.classList.add('out');
 
+        // Determine globe centre position for expansion
+        const isMobile = window.innerWidth <= 640;
+        const origin   = isMobile ? '50% 90px' : '77.5% 50%';
+
         // Globe expansion: force starting state inline, then animate to full-screen circle
-        vc.style.clipPath = 'circle(16vmin at 50% 50%)';
+        vc.style.clipPath = `circle(19vmin at ${origin})`;
         requestAnimationFrame(() => requestAnimationFrame(() => {
           vc.style.transition = 'clip-path 1.5s cubic-bezier(0.15,0,0.05,1)';
-          vc.style.clipPath    = 'circle(150vmax at 50% 50%)';
+          vc.style.clipPath    = `circle(150vmax at ${origin})`;
           vc.classList.remove('globe-mode');
         }));
 
