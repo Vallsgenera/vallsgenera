@@ -573,7 +573,9 @@ class VirtualTour {
       document.querySelectorAll('.scene-dot').forEach((d,i)=>d.classList.toggle('active',i===index));
 
       // UI immediata (hotspots, càmera) – independent de la foto
-      this.lon = 0; this.lat = 0; this.velLon = 0; this.velLat = 0;
+      this.lon = s.defaultLon != null ? s.defaultLon : 0;
+      this.lat = s.defaultLat != null ? s.defaultLat : 0;
+      this.velLon = 0; this.velLat = 0;
       this.buildHotspots(s);
       this.buildDecals(s);
       this.hideInfoPanel();
@@ -658,14 +660,15 @@ class VirtualTour {
         return;
       }
 
-      /* Navegació – fletxes animades */
+      /* Navegació – fletxa Street View */
       if (hs.type === 'nav') {
-        const chevSvg = `<svg class="nav-chevron" viewBox="0 0 22 11" fill="none"
-          stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="1,9 11,1 21,9"/></svg>`;
         el.innerHTML = `
-          <div class="nav-ring">
-            <div class="nav-arrows">${chevSvg}${chevSvg}${chevSvg}</div>
+          <div class="sv-arrow-wrap">
+            <svg viewBox="0 0 44 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M22 3 L41 34 H29 V53 H15 V34 H3 Z"
+                fill="rgba(255,255,255,0.90)"
+                stroke="rgba(0,0,0,0.18)" stroke-width="1.5" stroke-linejoin="round"/>
+            </svg>
           </div>
           <div class="nav-scene-label">${hs.title}</div>`;
         el.addEventListener('click', e => { e.stopPropagation(); this.handleHotspot(hs); });
@@ -968,7 +971,9 @@ class VirtualTour {
     if (e.touches.length===2 && this.lastPinchDist!==null) {
       e.preventDefault();
       const d=this.pinchDist(e.touches);
-      this.fov=Math.max(30,Math.min(100,this.fov+(this.lastPinchDist-d)*.12));
+      const s=this.scenes[this.currentIndex]||{};
+      const fMin=s.minFov??30, fMax=s.maxFov??100;
+      this.fov=Math.max(fMin,Math.min(fMax,this.fov+(this.lastPinchDist-d)*.12));
       this.camera.fov=this.fov; this.camera.updateProjectionMatrix();
       this.lastPinchDist=d; this.userInteractedAt=performance.now();
     }
@@ -977,7 +982,9 @@ class VirtualTour {
 
   onWheel(e) {
     e.preventDefault();
-    this.fov=Math.max(30,Math.min(100,this.fov+e.deltaY*.05));
+    const s=this.scenes[this.currentIndex]||{};
+    const fMin=s.minFov??30, fMax=s.maxFov??100;
+    this.fov=Math.max(fMin,Math.min(fMax,this.fov+e.deltaY*.05));
     this.camera.fov=this.fov; this.camera.updateProjectionMatrix();
     this.userInteractedAt=performance.now();
   }
@@ -1207,13 +1214,8 @@ window.addEventListener('DOMContentLoaded', () => {
     if (splash) {
       splash.classList.remove('hidden');
       splash.addEventListener('click', () => {
-        // Fade out landing image
         splash.classList.add('out');
-
-        // Start tiny-planet → 360° shader transition (3 s)
-        window.tour.startTinyPlanetTransition(3000);
-
-        setTimeout(() => splash.classList.add('hidden'), 3500);
+        setTimeout(() => splash.classList.add('hidden'), 500);
       }, { once: true });
     }
   }

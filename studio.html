@@ -124,6 +124,27 @@
           <input type="text" id="prop-image-path" placeholder="images/nom-escena.jpg">
         </div>
 
+        <div class="pp-field">
+          <label>Vista inicial <span class="label-hint">(lon / lat)</span></label>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input type="number" id="prop-default-lon" placeholder="lon" step="1" min="-360" max="360" style="width:64px;flex:1">
+            <input type="number" id="prop-default-lat" placeholder="lat" step="1" min="-85" max="85" style="width:64px;flex:1">
+            <button id="btn-capture-view" title="Captura la vista actual de la càmera" style="flex-shrink:0;padding:5px 8px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);border-radius:5px;color:rgba(255,255,255,.8);cursor:pointer;font-size:11px;font-weight:600;white-space:nowrap">
+              Captura
+            </button>
+          </div>
+        </div>
+
+        <div class="pp-field">
+          <label>Zoom FOV <span class="label-hint">(mínim / màxim)</span></label>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input type="number" id="prop-min-fov" value="30" min="10" max="90" step="5" style="width:64px;flex:1">
+            <span style="font-size:11px;color:rgba(255,255,255,.4)">–</span>
+            <input type="number" id="prop-max-fov" value="100" min="60" max="150" step="5" style="width:64px;flex:1">
+          </div>
+          <p style="font-size:10px;color:rgba(255,255,255,.35);margin:3px 0 0">FOV mínim = zoom màxim; màxim = zoom mínim</p>
+        </div>
+
         <div class="pp-hotspot-list">
           <div class="phl-header">
             <span>Hotspots</span>

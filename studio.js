@@ -814,6 +814,11 @@ class Studio {
           ? 'Foto incrustada ✓'
           : (s.image ? `Ruta: ${s.image}` : 'Arrossega o clica per seleccionar');
 
+    document.getElementById('prop-default-lon').value = s.defaultLon != null ? s.defaultLon : '';
+    document.getElementById('prop-default-lat').value = s.defaultLat != null ? s.defaultLat : '';
+    document.getElementById('prop-min-fov').value = s.minFov != null ? s.minFov : 30;
+    document.getElementById('prop-max-fov').value = s.maxFov != null ? s.maxFov : 100;
+
     // Hotspot mini list
     this.renderHsMiniList();
     this.renderDecalMiniList();
@@ -1072,6 +1077,14 @@ class Studio {
     const pathVal = document.getElementById('prop-image-path').value.trim();
     if (pathVal) s.image = pathVal;
     else if (!(typeof s.image === 'string' && s.image.startsWith('data:'))) s.image = undefined;
+    const lon = parseFloat(document.getElementById('prop-default-lon').value);
+    const lat = parseFloat(document.getElementById('prop-default-lat').value);
+    if (!isNaN(lon)) s.defaultLon = lon; else delete s.defaultLon;
+    if (!isNaN(lat)) s.defaultLat = lat; else delete s.defaultLat;
+    const minFov = parseInt(document.getElementById('prop-min-fov').value);
+    const maxFov = parseInt(document.getElementById('prop-max-fov').value);
+    if (!isNaN(minFov)) s.minFov = minFov; else delete s.minFov;
+    if (!isNaN(maxFov)) s.maxFov = maxFov; else delete s.maxFov;
     this.renderSceneList();
     document.getElementById('status-scene').textContent = s.name;
   }
@@ -1322,6 +1335,22 @@ class Studio {
       const s = this.currentScene;
       if (v) s.image = v;
       else if (!(typeof s.image === 'string' && s.image.startsWith('data:'))) s.image = undefined;
+    });
+
+    document.getElementById('prop-default-lon').addEventListener('change', () => { this.saveSceneProps(); this.saveData(); });
+    document.getElementById('prop-default-lat').addEventListener('change', () => { this.saveSceneProps(); this.saveData(); });
+    document.getElementById('prop-min-fov').addEventListener('change', () => { this.saveSceneProps(); this.saveData(); });
+    document.getElementById('prop-max-fov').addEventListener('change', () => { this.saveSceneProps(); this.saveData(); });
+
+    document.getElementById('btn-capture-view').addEventListener('click', () => {
+      const s = this.currentScene;
+      if (!s) return;
+      // Read current camera lon/lat from the studio viewer
+      s.defaultLon = Math.round(this.lon);
+      s.defaultLat = Math.round(this.lat);
+      document.getElementById('prop-default-lon').value = s.defaultLon;
+      document.getElementById('prop-default-lat').value = s.defaultLat;
+      this.saveData();
     });
 
     // Photo upload
