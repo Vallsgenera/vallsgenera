@@ -413,6 +413,7 @@ class VirtualTour {
     this._inTransition = false;
     this._entryRender  = null;
     this._audioMuted   = false;
+    this._nadirMesh    = null;
 
     this.init();
   }
@@ -426,6 +427,7 @@ class VirtualTour {
     this.loadScene(0, false);
     this.animate();
     this.loadLogo();
+    this.loadNadir();
     setTimeout(() => document.getElementById('controls-hint')?.classList.add('hidden'), 5000);
   }
 
@@ -1054,6 +1056,40 @@ class VirtualTour {
     el.classList.add('visible');
   }
 
+  /* ── Nadir patch (tripod cover) ── */
+  loadNadir() {
+    const src  = localStorage.getItem('vg-nadir');
+    const pct  = parseFloat(localStorage.getItem('vg-nadir-size') || '25');
+
+    // Remove existing nadir mesh
+    if (this._nadirMesh) {
+      this.threeScene.remove(this._nadirMesh);
+      this._nadirMesh.geometry.dispose();
+      this._nadirMesh.material.dispose();
+      this._nadirMesh = null;
+    }
+    if (!src) return;
+
+    // Disc radius: pct% of sphere radius (500), placed at y=-498
+    const discR = 500 * (pct / 100);
+    const geo = new THREE.CircleGeometry(discR, 64);
+    geo.rotateX(Math.PI / 2); // face upward (toward camera inside sphere)
+
+    new THREE.TextureLoader().load(src, tex => {
+      tex.minFilter = THREE.LinearFilter;
+      tex.magFilter = THREE.LinearFilter;
+      const mat = new THREE.MeshBasicMaterial({
+        map: tex,
+        transparent: true,
+        depthWrite: false,
+        side: THREE.FrontSide,
+      });
+      this._nadirMesh = new THREE.Mesh(geo, mat);
+      this._nadirMesh.position.set(0, -498, 0);
+      this.threeScene.add(this._nadirMesh);
+    });
+  }
+
   toggleSidebar() {
     const sb=document.getElementById('sidebar');
     const ov=document.getElementById('sidebar-overlay');
@@ -1300,6 +1336,14 @@ window.addEventListener('DOMContentLoaded', () => {
 
     // Sincronització en viu des del Studio (mateix navegador, una altra pestanya)
     window.addEventListener('storage', e => {
+      if (e.key === 'vg-nadir' || e.key === 'vg-nadir-size') {
+        window.tour.loadNadir();
+        return;
+      }
+      if (e.key === 'vg-logo' || e.key === 'vg-logo-size' || e.key === 'vg-logo-corner') {
+        window.tour.loadLogo();
+        return;
+      }
       if (e.key !== 'vg-tour-scenes') return;
       try {
         applyScenes(JSON.parse(e.newValue));

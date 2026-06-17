@@ -104,6 +104,28 @@
 
         <button id="btn-remove-logo" style="display:none">Treure logo</button>
       </div>
+
+      <!-- Nadir patch (tapador trípode) -->
+      <div class="sp-logo-section">
+        <div class="sp-logo-header">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="16" x2="12" y2="12"/>
+            <line x1="12" y1="8" x2="12.01" y2="8"/>
+          </svg>
+          Nadir (tapador)
+        </div>
+        <label class="logo-drop" id="nadir-drop" title="PNG amb canal alfa (transparència)">
+          <img id="nadir-preview" alt="Nadir preview">
+          <span id="nadir-placeholder">Tapa el peu del trípode</span>
+          <input type="file" id="nadir-input" accept=".png,.webp" style="display:none">
+        </label>
+        <div id="nadir-controls" style="display:none">
+          <div class="logo-ctrl-label" style="margin-top:8px">Mida <span id="nadir-size-val">25%</span></div>
+          <input type="range" id="nadir-size" min="5" max="60" value="25" style="width:100%;margin:3px 0 0;accent-color:var(--accent)">
+        </div>
+        <button id="btn-remove-nadir" style="display:none">Treure nadir</button>
+      </div>
     </aside>
 
     <!-- ── Center: 360° viewer ── -->

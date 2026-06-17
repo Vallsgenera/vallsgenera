@@ -1570,6 +1570,33 @@ class Studio {
       this._applyLogoPreview(null);
       this.showToast('Logo eliminat');
     });
+
+    // Nadir patch
+    this._initNadir();
+    document.getElementById('nadir-input').addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        const src = ev.target.result;
+        localStorage.setItem('vg-nadir', src);
+        this._applyNadirPreview(src);
+        this.showToast('Nadir desat — visible al Tour');
+      };
+      reader.readAsDataURL(file);
+      e.target.value = '';
+    });
+    document.getElementById('nadir-size').addEventListener('input', e => {
+      const v = e.target.value;
+      document.getElementById('nadir-size-val').textContent = v + '%';
+      localStorage.setItem('vg-nadir-size', v);
+    });
+    document.getElementById('btn-remove-nadir').addEventListener('click', () => {
+      localStorage.removeItem('vg-nadir');
+      localStorage.removeItem('vg-nadir-size');
+      this._applyNadirPreview(null);
+      this.showToast('Nadir eliminat');
+    });
     document.getElementById('logo-size').addEventListener('input', e => {
       const v = e.target.value;
       document.getElementById('logo-size-val').textContent = v + 'px';
@@ -1607,6 +1634,37 @@ class Studio {
     const placeholder = document.getElementById('logo-placeholder');
     const removeBtn   = document.getElementById('btn-remove-logo');
     const controls    = document.getElementById('logo-controls');
+    if (src) {
+      preview.src = src;
+      preview.style.display = 'block';
+      placeholder.style.display = 'none';
+      removeBtn.style.display = 'block';
+      if (controls) controls.style.display = 'block';
+    } else {
+      preview.src = '';
+      preview.style.display = 'none';
+      placeholder.style.display = '';
+      removeBtn.style.display = 'none';
+      if (controls) controls.style.display = 'none';
+    }
+  }
+
+  _initNadir() {
+    const src  = localStorage.getItem('vg-nadir');
+    const size = localStorage.getItem('vg-nadir-size') || '25';
+    const slider = document.getElementById('nadir-size');
+    if (slider) {
+      slider.value = size;
+      document.getElementById('nadir-size-val').textContent = size + '%';
+    }
+    this._applyNadirPreview(src);
+  }
+
+  _applyNadirPreview(src) {
+    const preview     = document.getElementById('nadir-preview');
+    const placeholder = document.getElementById('nadir-placeholder');
+    const removeBtn   = document.getElementById('btn-remove-nadir');
+    const controls    = document.getElementById('nadir-controls');
     if (src) {
       preview.src = src;
       preview.style.display = 'block';
