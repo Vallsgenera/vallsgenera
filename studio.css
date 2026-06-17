@@ -117,18 +117,34 @@ input,textarea,select{font-family:inherit;font-size:13px}
 }
 .scene-item:hover{background:rgba(255,255,255,0.05)}
 .scene-item.active{background:rgba(15,110,86,0.15);border-color:var(--accent)}
+.scene-thumb-row{
+  display:flex;align-items:flex-start;gap:4px;margin-bottom:2px;
+}
 .scene-color-dot{
-  width:100%;height:28px;border-radius:4px;margin-bottom:4px;
+  flex:1;height:28px;border-radius:4px;
   display:flex;align-items:center;justify-content:center;
-  font-size:18px;flex-shrink:0;
+  font-size:14px;flex-shrink:0;
   border:1px solid rgba(255,255,255,.1);
 }
+.scene-eye-btn{
+  flex-shrink:0;
+  width:24px;height:28px;border-radius:4px;
+  background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.1);
+  color:var(--text-muted);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;
+  transition:background var(--dur),color var(--dur),border-color var(--dur);
+}
+.scene-eye-btn:hover{background:rgba(255,255,255,.14);color:white;border-color:rgba(255,255,255,.25)}
+.scene-hidden .scene-eye-btn{color:rgba(255,80,80,.6)}
 .scene-item-name{
   font-size:12px;font-weight:500;color:var(--text);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
 .scene-item-count{font-size:10.5px;color:var(--text-muted)}
 .scene-item.active .scene-item-name{color:white}
+.scene-item.scene-hidden{opacity:.55}
 
 /* ── Center viewer ── */
 #studio-viewer{
@@ -141,9 +157,11 @@ input,textarea,select{font-family:inherit;font-size:13px}
 #studio-hotspots{position:absolute;inset:0;pointer-events:none;z-index:10}
 
 .s-hotspot{
-  position:absolute;pointer-events:all;cursor:pointer;
+  position:absolute;pointer-events:all;cursor:grab;
   transform:translate(-50%,-50%);
+  user-select:none;
 }
+.s-hotspot.dragging{cursor:grabbing!important;}
 .s-hotspot-inner{
   width:36px;height:36px;border-radius:50%;
   display:flex;align-items:center;justify-content:center;
@@ -574,10 +592,125 @@ input,textarea,select{font-family:inherit;font-size:13px}
 }
 .pp-toggle-label{font-size:12px;color:var(--text-muted)}
 
-/* Scene list: hidden scenes appear dimmed */
-.scene-item.scene-hidden .scene-item-name::after{
-  content:' · oculta';font-size:10px;font-weight:400;opacity:.5;
-}
 
 /* ── Sections hidden ── */
 .hidden{display:none!important}
+
+/* ── Decal corner handles ── */
+#studio-decal-handles {
+  position: absolute; inset: 0;
+  pointer-events: none; z-index: 15;
+}
+.dcl-handle {
+  position: absolute;
+  width: 14px; height: 14px;
+  border-radius: 3px;
+  background: #f59e0b;
+  border: 1.5px solid #fff;
+  transform: translate(-50%, -50%);
+  pointer-events: all;
+  cursor: grab;
+  box-shadow: 0 1px 4px rgba(0,0,0,.5);
+  transition: transform .1s;
+}
+.dcl-handle:active { cursor: grabbing; transform: translate(-50%,-50%) scale(1.25); }
+
+/* ── Decal mini-list section in scene props ── */
+.pp-decal-list {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  margin-top: 4px;
+}
+.phl-add-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px;
+  border-radius: var(--radius);
+  background: rgba(255,255,255,.06);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background var(--dur), color var(--dur);
+}
+.phl-add-btn:hover { background: rgba(255,255,255,.13); color: white; }
+.decal-hint {
+  font-size: 10.5px; color: var(--text-muted);
+  line-height: 1.45; margin-top: 6px;
+}
+
+/* ── Decal props panel ── */
+.decal-corner-hint {
+  font-size: 11px; color: var(--text-muted); line-height: 1.5;
+}
+.dcl-handle-sample {
+  display: inline-block;
+  width: 10px; height: 10px;
+  border-radius: 2px;
+  background: #f59e0b;
+  border: 1px solid #fff;
+  vertical-align: middle;
+  margin: 0 2px;
+}
+
+/* ── Logo (mosca) section in scenes panel ── */
+.sp-logo-section {
+  border-top: 1px solid var(--border);
+  padding: 10px 10px 12px;
+  flex-shrink: 0;
+}
+.sp-logo-header {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .7px; color: var(--text-muted);
+  margin-bottom: 8px;
+}
+.logo-drop {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 5px; padding: 10px 8px;
+  border: 1.5px dashed rgba(255,255,255,.15);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: border-color var(--dur), background var(--dur);
+  background: rgba(255,255,255,.03);
+  text-align: center;
+  min-height: 60px; justify-content: center;
+}
+.logo-drop:hover { border-color: var(--accent); background: rgba(15,110,86,.07); }
+#logo-preview { max-width: 100%; max-height: 48px; object-fit: contain; display: none; }
+#logo-placeholder { font-size: 10.5px; color: var(--text-muted); }
+#btn-remove-logo {
+  display: none; width: 100%; margin-top: 6px;
+  padding: 5px 0; background: rgba(192,57,43,.12);
+  border: 1px solid rgba(192,57,43,.3); border-radius: var(--radius);
+  color: #e07070; font-size: 11px; cursor: pointer;
+  transition: background var(--dur);
+}
+#btn-remove-logo:hover { background: rgba(192,57,43,.22); }
+
+/* Logo controls */
+.logo-ctrl-label {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .6px; color: var(--text-muted);
+  margin-top: 8px; margin-bottom: 4px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.logo-corners {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+.logo-corner-btn {
+  display: flex; align-items: center; justify-content: center;
+  height: 28px;
+  background: rgba(255,255,255,.05);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background var(--dur), border-color var(--dur);
+}
+.logo-corner-btn svg { width: 18px; height: 18px; fill: var(--text-muted); }
+.logo-corner-btn:hover { background: rgba(255,255,255,.1); }
+.logo-corner-btn.active {
+  background: rgba(15,110,86,.25);
+  border-color: var(--accent);
+}
+.logo-corner-btn.active svg { fill: #4ade9e; }
+#logo-size { accent-color: var(--accent); }

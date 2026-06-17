@@ -17,14 +17,23 @@
 
   <!-- ── Sidebar drawer (escenes) ── -->
   <div id="scenes-tab" title="Escenes">
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-      <rect x="3" y="3" width="18" height="18" rx="2"/>
-      <path d="M3 9h18M9 21V9"/>
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+      <line x1="3" y1="6" x2="21" y2="6"/>
+      <line x1="3" y1="12" x2="21" y2="12"/>
+      <line x1="3" y1="18" x2="21" y2="18"/>
     </svg>
-    <span>Escenes</span>
   </div>
   <aside id="sidebar">
     <nav class="dept-nav" id="dept-nav"></nav>
+    <div id="sidebar-footer">
+      <button id="btn-map" title="La nostra ubicació">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/>
+          <circle cx="12" cy="10" r="3"/>
+        </svg>
+        <span>La nostra ubicació</span>
+      </button>
+    </div>
   </aside>
   <div id="sidebar-overlay"></div>
 
@@ -34,24 +43,12 @@
     <div id="hotspots-overlay"></div>
     <div id="transition-overlay"></div>
 
+    <!-- Logo overlay (mosca) -->
+    <img id="logo-overlay" alt="Logo">
+
     <!-- Top bar -->
     <div id="top-bar">
       <div id="scene-title">Feina i Ocupació</div>
-
-      <!-- Botó de càrrega de foto (visible en mode local, ocult quan és publicat) -->
-      <label id="local-photo-btn" title="Carregar foto 360° per a aquesta escena">
-        <input type="file" id="local-photo-input" accept="image/*" style="display:none">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-          <circle cx="12" cy="13" r="4"/>
-        </svg>
-      </label>
-
-      <button id="fullscreen-btn" aria-label="Pantalla completa">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
-        </svg>
-      </button>
     </div>
 
     <!-- Info panel (for type:info hotspots) -->
@@ -76,14 +73,6 @@
       </div>
     </div>
 
-    <!-- Nav arrows -->
-    <button id="prev-scene" class="nav-arrow" aria-label="Escena anterior">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
-    </button>
-    <button id="next-scene" class="nav-arrow" aria-label="Escena seg&uuml;ent">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
-    </button>
-
     <div id="scene-dots"></div>
 
     <div id="controls-hint">
@@ -92,41 +81,51 @@
       <span>Moleta per fer zoom</span>
     </div>
 
-    <!-- ── Mode posicionament (tecla P per activar) ── -->
-    <div id="pos-mode" class="hidden">
-      <div class="pos-crosshair"></div>
-      <div class="pos-bar">
-        <span class="pos-label">MODE POSICIONAMENT</span>
-        <span class="pos-coords">
-          lon: <strong id="pos-lon">0</strong>
-          &nbsp;&nbsp;
-          lat: <strong id="pos-lat">0</strong>
-        </span>
-        <button id="pos-copy-btn" title="Copia les coordenades al portapapers">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-          </svg>
-          Copiar posició
-        </button>
-        <button id="pos-close-btn" title="Tancar mode posicionament">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </button>
-      </div>
-    </div>
-
     <!-- Toast notificació -->
-    <div id="pos-toast">Coordenades copiades!</div>
+    <div id="vg-toast"></div>
 
-    <!-- Botó d'accés ràpid al mode posicionament -->
-    <button id="pos-trigger" title="Mode posicionament (tecla P)">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="9" stroke-dasharray="2 4"/>
-        <line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/>
-        <line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/>
-      </svg>
-    </button>
+    <!-- ── Bottom-right control bar ── -->
+    <div id="tour-controls">
+      <button id="btn-home" title="Inici (primera escena)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"/>
+          <polyline points="9 21 9 13 15 13 15 21"/>
+        </svg>
+      </button>
+      <button id="btn-audio" title="So" class="tc-toggle">
+        <svg id="audio-icon-on" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+          <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+        </svg>
+        <svg id="audio-icon-off" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+          <line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>
+        </svg>
+      </button>
+      <button id="btn-vr" title="Mode VR">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M2 8h20v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8z"/>
+          <circle cx="8.5" cy="13" r="1.5"/>
+          <circle cx="15.5" cy="13" r="1.5"/>
+          <path d="M10 13h4"/>
+        </svg>
+      </button>
+      <button id="btn-snapshot" title="Captura de pantalla">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+          <circle cx="12" cy="13" r="4"/>
+        </svg>
+      </button>
+      <button id="btn-fullscreen" title="Pantalla completa">
+        <svg id="fs-icon-expand" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+        </svg>
+        <svg id="fs-icon-compress" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none">
+          <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 0 2 2v3"/>
+        </svg>
+      </button>
+    </div>
   </main>
 
   <!-- ══════════════════════════════════════════
@@ -149,18 +148,34 @@
     </div>
   </div>
 
+  <!-- ── Map modal ── -->
+  <div id="map-modal" aria-hidden="true">
+    <div class="map-overlay"></div>
+    <div class="map-panel">
+      <div class="map-header">
+        <span>La nostra ubicació</span>
+        <button id="map-close" aria-label="Tancar">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+      <div class="map-body">
+        <iframe
+          src="https://maps.google.com/maps?q=41.2890473,1.2530344&z=19&output=embed"
+          width="100%" height="100%"
+          frameborder="0" style="border:0" allowfullscreen
+          loading="lazy" referrerpolicy="no-referrer-when-downgrade">
+        </iframe>
+      </div>
+    </div>
+  </div>
+
   <!-- ── Splash / Landing page ── -->
   <div id="splash" class="hidden">
-    <div class="splash-inner">
-      <div class="splash-logo-box"><span class="splash-v">V</span></div>
-      <h1 class="splash-title">Vallsgenera</h1>
-      <p class="splash-subtitle">Institut Municipal de Desenvolupament Local · Valls</p>
-      <span class="splash-badge">Tour Virtual 360°</span>
-      <div class="splash-sep"></div>
-      <div class="splash-tap">
-        <div class="splash-tap-dot"></div>
-      </div>
-      <p class="splash-cta-text">Clica per começar</p>
+    <div class="splash-cta-bar">
+      <div class="splash-cta-pulse"></div>
+      <span>Clica per comen&ccedil;ar</span>
     </div>
   </div>
 

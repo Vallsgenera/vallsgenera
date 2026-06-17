@@ -408,6 +408,12 @@ class VirtualTour {
     this.velLon = 0; this.velLat  = 0;
     this.userInteractedAt = 0;
     this.lastPinchDist = null;
+    this._decalMeshes  = [];
+    this.globeMode = false;
+    this._inTransition = false;
+    this._entryRender  = null;
+    this._audioMuted   = false;
+    this._nadirMesh    = null;
 
     this.init();
   }
@@ -420,6 +426,8 @@ class VirtualTour {
     this.setupEvents();
     this.loadScene(0, false);
     this.animate();
+    this.loadLogo();
+    this.loadNadir();
     setTimeout(() => document.getElementById('controls-hint')?.classList.add('hidden'), 5000);
   }
 
@@ -569,8 +577,11 @@ class VirtualTour {
       document.querySelectorAll('.scene-dot').forEach((d,i)=>d.classList.toggle('active',i===index));
 
       // UI immediata (hotspots, càmera) – independent de la foto
-      this.lon = 0; this.lat = 0; this.velLon = 0; this.velLat = 0;
+      this.lon = s.defaultLon != null ? s.defaultLon : 0;
+      this.lat = s.defaultLat != null ? s.defaultLat : 0;
+      this.velLon = 0; this.velLat = 0;
       this.buildHotspots(s);
+      this.buildDecals(s);
       this.hideInfoPanel();
       this.closeLightbox();
 
@@ -653,14 +664,18 @@ class VirtualTour {
         return;
       }
 
-      /* Navegació – fletxes animades */
+      /* Navegació – fletxes estil Street View (tres xevrons horitzontals en perspectiva) */
       if (hs.type === 'nav') {
-        const chevSvg = `<svg class="nav-chevron" viewBox="0 0 22 11" fill="none"
-          stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="1,9 11,1 21,9"/></svg>`;
+        const chev = `<svg viewBox="0 0 62 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <polyline points="3,20 31,4 59,20"
+            stroke="white" stroke-width="5.5"
+            stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>`;
         el.innerHTML = `
-          <div class="nav-ring">
-            <div class="nav-arrows">${chevSvg}${chevSvg}${chevSvg}</div>
+          <div class="sv-arrow-wrap">
+            <div class="sv-chevron sv-c1">${chev}</div>
+            <div class="sv-chevron sv-c2">${chev}</div>
+            <div class="sv-chevron sv-c3">${chev}</div>
           </div>
           <div class="nav-scene-label">${hs.title}</div>`;
         el.addEventListener('click', e => { e.stopPropagation(); this.handleHotspot(hs); });
@@ -779,10 +794,82 @@ class VirtualTour {
     this._lbOpen(hs.title, 'image');
     const body = document.getElementById('lb-body');
     body.className = 'lb-image';
-    const img = document.createElement('img');
-    img.src = hs.imageUrl; img.alt = hs.title;
-    body.appendChild(img);
-    if (hs.caption) document.getElementById('lb-caption').textContent = hs.caption;
+    const show = src => {
+      const img = document.createElement('img');
+      img.src = src; img.alt = hs.title;
+      body.appendChild(img);
+      if (hs.caption) document.getElementById('lb-caption').textContent = hs.caption;
+    };
+    // Check IndexedDB first (image uploaded in Studio), fall back to URL
+    PhotoStore.get('hs-img-' + hs.id)
+      .then(blob => blob ? show(URL.createObjectURL(blob)) : show(hs.imageUrl || ''))
+      .catch(() => show(hs.imageUrl || ''));
+  }
+
+  /* ── Image overlays (decals) ── */
+  buildDecals(scene) {
+    this._decalMeshes.forEach(m => this.threeScene.remove(m));
+    this._decalMeshes = [];
+    const r = 490;
+    const toV = (lon, lat) => {
+      const phi = THREE.MathUtils.degToRad(90 - lat);
+      const th  = THREE.MathUtils.degToRad(lon);
+      return [r*Math.sin(phi)*Math.cos(th), r*Math.cos(phi), r*Math.sin(phi)*Math.sin(th)];
+    };
+
+    const makeTextTex = decal => {
+      const W = 1024, H = 512;
+      const cv = document.createElement('canvas');
+      cv.width = W; cv.height = H;
+      const ctx = cv.getContext('2d');
+      if ((decal.bgOpacity || 0) > 0) {
+        const hex = decal.bgColor || '#000000';
+        const rr = parseInt(hex.slice(1,3),16), gg = parseInt(hex.slice(3,5),16), bb = parseInt(hex.slice(5,7),16);
+        ctx.fillStyle = `rgba(${rr},${gg},${bb},${decal.bgOpacity/100})`;
+        ctx.fillRect(0, 0, W, H);
+      }
+      const fs = Math.max(20, Math.min(400, decal.fontSize || 80));
+      ctx.font = `${decal.italic?'italic ':''}${decal.bold?'bold ':''}${fs}px system-ui,sans-serif`;
+      ctx.fillStyle = decal.color || '#ffffff';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.shadowColor = 'rgba(0,0,0,.65)'; ctx.shadowBlur = 10;
+      ctx.fillText(decal.content || '', W/2, H/2);
+      return new THREE.CanvasTexture(cv);
+    };
+
+    (scene.decals || []).forEach(decal => {
+      const c = decal.corners;
+      if (!c) return;
+      const tl = toV(c.tl.lon, c.tl.lat);
+      const tr = toV(c.tr.lon, c.tr.lat);
+      const br = toV(c.br.lon, c.br.lat);
+      const bl = toV(c.bl.lon, c.bl.lat);
+      const positions = new Float32Array([...tl,...bl,...tr,...tr,...bl,...br]);
+      const uvs = new Float32Array([0,1,0,0,1,1,1,1,0,0,1,0]);
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      geo.setAttribute('uv',       new THREE.BufferAttribute(uvs, 2));
+      const mat = new THREE.MeshBasicMaterial({
+        transparent: true, opacity: decal.opacity ?? 1,
+        side: THREE.DoubleSide, depthTest: false
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      this.threeScene.add(mesh);
+      this._decalMeshes.push(mesh);
+
+      if (decal.decalType === 'text') {
+        mat.map = makeTextTex(decal);
+        mat.needsUpdate = true;
+      } else {
+        const loadTex = src => new THREE.TextureLoader().load(src, tex => {
+          tex.minFilter = THREE.LinearFilter;
+          mat.map = tex; mat.needsUpdate = true;
+        });
+        PhotoStore.get('dcl-' + decal.id)
+          .then(blob => blob ? loadTex(URL.createObjectURL(blob)) : (decal.imageUrl && loadTex(decal.imageUrl)))
+          .catch(() => decal.imageUrl && loadTex(decal.imageUrl));
+      }
+    });
   }
 
   openLightboxLink(hs) {
@@ -842,11 +929,21 @@ class VirtualTour {
     window.addEventListener('keydown', e => this.onKeyDown(e));
 
     document.getElementById('info-close').addEventListener('click', () => this.hideInfoPanel());
-    document.getElementById('prev-scene').addEventListener('click', () => this.prevScene());
-    document.getElementById('next-scene').addEventListener('click', () => this.nextScene());
     document.getElementById('scenes-tab').addEventListener('click', () => this.toggleSidebar());
     document.getElementById('sidebar-overlay').addEventListener('click', () => this.closeSidebar());
-    document.getElementById('fullscreen-btn').addEventListener('click', () => this.toggleFullscreen());
+
+    // Bottom control bar
+    document.getElementById('btn-home').addEventListener('click', () => this.loadScene(0));
+    document.getElementById('btn-audio').addEventListener('click', () => this.toggleAudio());
+    document.getElementById('btn-vr').addEventListener('click', () => this.toggleVR());
+    document.getElementById('btn-snapshot').addEventListener('click', () => this.takeSnapshot());
+    document.getElementById('btn-fullscreen').addEventListener('click', () => this.toggleFullscreen());
+
+    document.addEventListener('fullscreenchange', () => {
+      const inFS = !!document.fullscreenElement;
+      document.getElementById('fs-icon-expand').style.display  = inFS ? 'none' : '';
+      document.getElementById('fs-icon-compress').style.display = inFS ? '' : 'none';
+    });
 
     // (Els botons .dept-btn reben el seu handler a buildSidebarNav)
 
@@ -854,10 +951,10 @@ class VirtualTour {
     document.getElementById('lb-close').addEventListener('click', () => this.closeLightbox());
     document.querySelector('.lb-overlay').addEventListener('click', () => this.closeLightbox());
 
-    // Mode posicionament
-    document.getElementById('pos-trigger').addEventListener('click', () => this.togglePosMode());
-    document.getElementById('pos-copy-btn').addEventListener('click', () => this.copyPosition());
-    document.getElementById('pos-close-btn').addEventListener('click', () => this.setPosMode(false));
+    // Map modal
+    document.getElementById('btn-map').addEventListener('click', () => this.openMapModal());
+    document.getElementById('map-close').addEventListener('click', () => this.closeMapModal());
+    document.querySelector('.map-overlay').addEventListener('click', () => this.closeMapModal());
 
     // Click outside panels
     document.getElementById('viewer-container').addEventListener('click', e => {
@@ -891,7 +988,9 @@ class VirtualTour {
     if (e.touches.length===2 && this.lastPinchDist!==null) {
       e.preventDefault();
       const d=this.pinchDist(e.touches);
-      this.fov=Math.max(30,Math.min(100,this.fov+(this.lastPinchDist-d)*.12));
+      const s=this.scenes[this.currentIndex]||{};
+      const fMin=s.minFov??30, fMax=s.maxFov??100;
+      this.fov=Math.max(fMin,Math.min(fMax,this.fov+(this.lastPinchDist-d)*.12));
       this.camera.fov=this.fov; this.camera.updateProjectionMatrix();
       this.lastPinchDist=d; this.userInteractedAt=performance.now();
     }
@@ -900,7 +999,9 @@ class VirtualTour {
 
   onWheel(e) {
     e.preventDefault();
-    this.fov=Math.max(30,Math.min(100,this.fov+e.deltaY*.05));
+    const s=this.scenes[this.currentIndex]||{};
+    const fMin=s.minFov??30, fMax=s.maxFov??100;
+    this.fov=Math.max(fMin,Math.min(fMax,this.fov+e.deltaY*.05));
     this.camera.fov=this.fov; this.camera.updateProjectionMatrix();
     this.userInteractedAt=performance.now();
   }
@@ -911,8 +1012,7 @@ class VirtualTour {
     if(e.key==='ArrowRight') {this.lon+=step; this.userInteractedAt=performance.now()}
     if(e.key==='ArrowUp')    {this.lat=Math.min(85,this.lat+step); this.userInteractedAt=performance.now()}
     if(e.key==='ArrowDown')  {this.lat=Math.max(-85,this.lat-step); this.userInteractedAt=performance.now()}
-    if(e.key==='Escape')     {this.hideInfoPanel(); this.closeSidebar(); this.closeLightbox(); this.setPosMode(false)}
-    if(e.key==='p'||e.key==='P') {this.togglePosMode()}
+    if(e.key==='Escape')     {this.hideInfoPanel(); this.closeSidebar(); this.closeLightbox(); this.closeMapModal();}
     if(e.key==='+'||e.key==='='){this.fov=Math.max(30,this.fov-5); this.camera.fov=this.fov; this.camera.updateProjectionMatrix()}
     if(e.key==='-')            {this.fov=Math.min(100,this.fov+5); this.camera.fov=this.fov; this.camera.updateProjectionMatrix()}
     const n=parseInt(e.key,10); if(n>=1&&n<=6) this.loadScene(n-1);
@@ -921,34 +1021,71 @@ class VirtualTour {
   prevScene() { this.loadScene((this.currentIndex-1+this.scenes.length)%this.scenes.length); }
   nextScene() { this.loadScene((this.currentIndex+1)%this.scenes.length); }
 
-  /* ── Mode posicionament ── */
-  togglePosMode() { this.setPosMode(!this._posMode); }
-
-  setPosMode(on) {
-    this._posMode = on;
-    document.getElementById('pos-mode').classList.toggle('hidden', !on);
-    document.getElementById('pos-trigger').classList.toggle('active', on);
+  /* ── Map modal ── */
+  openMapModal() {
+    this.closeSidebar();
+    const m = document.getElementById('map-modal');
+    m.classList.add('visible');
+    m.setAttribute('aria-hidden', 'false');
+  }
+  closeMapModal() {
+    const m = document.getElementById('map-modal');
+    m.classList.remove('visible');
+    m.setAttribute('aria-hidden', 'true');
   }
 
-  updatePosDisplay() {
-    if (!this._posMode) return;
-    const lon = ((this.lon % 360) + 360) % 360;
-    const displayLon = lon > 180 ? lon - 360 : lon;
-    document.getElementById('pos-lon').textContent = displayLon.toFixed(1);
-    document.getElementById('pos-lat').textContent = this.lat.toFixed(1);
+  /* ── Logo overlay ── */
+  loadLogo() {
+    const src    = localStorage.getItem('vg-logo');
+    const size   = parseInt(localStorage.getItem('vg-logo-size') || '112', 10);
+    const corner = localStorage.getItem('vg-logo-corner') || 'tr';
+    const el = document.getElementById('logo-overlay');
+    if (!el) return;
+    if (!src) { el.classList.remove('visible'); return; }
+
+    el.src = src;
+    el.style.maxHeight = size + 'px';
+    el.style.maxWidth  = Math.round(size * 3) + 'px';
+
+    el.style.top    = corner.startsWith('t') ? '0' : 'auto';
+    el.style.bottom = corner.startsWith('b') ? '0' : 'auto';
+    el.style.left   = corner.endsWith('l')   ? '0' : 'auto';
+    el.style.right  = corner.endsWith('r')   ? '0' : 'auto';
+
+    el.classList.add('visible');
   }
 
-  copyPosition() {
-    const lon = ((this.lon % 360) + 360) % 360;
-    const displayLon = lon > 180 ? lon - 360 : lon;
-    const snippet =
-`{ id: 'hs-nou', lon: ${displayLon.toFixed(1)}, lat: ${this.lat.toFixed(1)}, type: 'info',
-  title: 'Títol del hotspot',
-  content: 'Descripció del hotspot.' },`;
-    navigator.clipboard.writeText(snippet).then(() => {
-      const toast = document.getElementById('pos-toast');
-      toast.classList.add('show');
-      setTimeout(() => toast.classList.remove('show'), 2200);
+  /* ── Nadir patch (tripod cover) ── */
+  loadNadir() {
+    const src  = localStorage.getItem('vg-nadir');
+    const pct  = parseFloat(localStorage.getItem('vg-nadir-size') || '25');
+
+    // Remove existing nadir mesh
+    if (this._nadirMesh) {
+      this.threeScene.remove(this._nadirMesh);
+      this._nadirMesh.geometry.dispose();
+      this._nadirMesh.material.dispose();
+      this._nadirMesh = null;
+    }
+    if (!src) return;
+
+    // Disc radius: pct% of sphere radius (500), placed at y=-498
+    const discR = 500 * (pct / 100);
+    const geo = new THREE.CircleGeometry(discR, 64);
+    geo.rotateX(Math.PI / 2); // face upward (toward camera inside sphere)
+
+    new THREE.TextureLoader().load(src, tex => {
+      tex.minFilter = THREE.LinearFilter;
+      tex.magFilter = THREE.LinearFilter;
+      const mat = new THREE.MeshBasicMaterial({
+        map: tex,
+        transparent: true,
+        depthWrite: false,
+        side: THREE.FrontSide,
+      });
+      this._nadirMesh = new THREE.Mesh(geo, mat);
+      this._nadirMesh.position.set(0, -498, 0);
+      this.threeScene.add(this._nadirMesh);
     });
   }
 
@@ -962,6 +1099,44 @@ class VirtualTour {
     document.getElementById('sidebar').classList.remove('open');
     document.getElementById('sidebar-overlay').classList.remove('visible');
   }
+  toggleAudio() {
+    this._audioMuted = !this._audioMuted;
+    document.getElementById('audio-icon-on').style.display  = this._audioMuted ? 'none' : '';
+    document.getElementById('audio-icon-off').style.display = this._audioMuted ? '' : 'none';
+    document.getElementById('btn-audio').classList.toggle('tc-active', this._audioMuted);
+    document.querySelectorAll('audio,video').forEach(m => { m.muted = this._audioMuted; });
+  }
+
+  toggleVR() {
+    if (navigator.xr) {
+      navigator.xr.isSessionSupported('immersive-vr').then(supported => {
+        if (supported) {
+          this.renderer.xr.enabled = true;
+          navigator.xr.requestSession('immersive-vr').then(session => {
+            this.renderer.xr.setSession(session);
+          }).catch(() => this._vrFallback());
+        } else { this._vrFallback(); }
+      });
+    } else { this._vrFallback(); }
+  }
+  _vrFallback() {
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
+    const t = document.getElementById('vg-toast');
+    if (t) { t.textContent = 'VR: rota el dispositiu per mirar al voltant'; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),3000); }
+  }
+
+  takeSnapshot() {
+    // Force a render first so the canvas has current frame
+    this.renderer.render(this.threeScene, this.camera);
+    const canvas = document.getElementById('panorama-canvas');
+    const url = canvas.toDataURL('image/jpeg', 0.92);
+    const a = document.createElement('a');
+    a.href = url;
+    const sceneName = (this.scenes[this.currentIndex]?.name || 'snapshot').replace(/\s+/g,'-').toLowerCase();
+    a.download = `vallsgenera-${sceneName}.jpg`;
+    a.click();
+  }
+
   toggleFullscreen() {
     if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
     else document.exitFullscreen().catch(()=>{});
@@ -976,16 +1151,121 @@ class VirtualTour {
   /* ── Animation loop ── */
   animate() {
     requestAnimationFrame(()=>this.animate());
-    this.update();
-    this.renderer.render(this.threeScene, this.camera);
+    if (this._entryRender) {
+      this._entryRender(); // tiny-planet entry animation owns the renderer
+    } else {
+      this.update();
+      this.renderer.render(this.threeScene, this.camera);
+    }
+  }
+
+  /* ── Tiny-planet entry: camera outside → flies in → immersive 360°
+     Phase 1 (t=0):  camera at z=camStart, sees sphere as tiny planet
+     Phase 2 (0→1):  camera flies in, FOV widens, UV morphs outside→inside
+     Phase 3 (t=1):  camera at origin, standard inside-sphere 360° tour     ── */
+  startTinyPlanetTransition(duration) {
+    // Retry until the panorama texture is ready
+    const tex = this.sphere.material && this.sphere.material.map
+      ? this.sphere.material.map : null;
+    if (!tex) { setTimeout(() => this.startTinyPlanetTransition(duration), 150); return; }
+
+    this._inTransition = true;
+    this.sphere.visible = false; // hide main sphere while entry plays
+
+    // ── Entry scene: small sphere visible from outside ──────────────────
+    const R = 5;
+    const camStart = 16;
+    const entryScene  = new THREE.Scene();
+    const entryCamera = new THREE.PerspectiveCamera(
+      45, this.camera.aspect, 0.01, 200
+    );
+    entryCamera.position.set(0, 0, camStart);
+    entryCamera.lookAt(0, 0, 0);
+
+    const entryGeo = new THREE.SphereGeometry(R, 64, 48);
+    const shaderMat = new THREE.ShaderMaterial({
+      uniforms: {
+        uTexture: { value: tex },
+        uT:       { value: 0.0 },
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main(){
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform sampler2D uTexture;
+        uniform float uT;
+        varying vec2 vUv;
+        void main(){
+          // Seen from outside: standard UV.
+          // Seen from inside: must mirror-u to correct the back-face flip.
+          vec2 uvOut = vUv;
+          vec2 uvIn  = vec2(1.0 - vUv.x, vUv.y);
+          vec2 uv = mix(uvOut, uvIn, smoothstep(0.3, 0.85, uT));
+          gl_FragColor = texture2D(uTexture, uv);
+        }
+      `,
+      side: THREE.DoubleSide,
+    });
+
+    const entrySphere = new THREE.Mesh(entryGeo, shaderMat);
+    entryScene.add(entrySphere);
+
+    // ── Animate ─────────────────────────────────────────────────────────
+    const t0 = performance.now();
+    const eio = t => t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2,3)/2; // ease-in-out cubic
+
+    this._entryRender = () => {
+      const raw  = Math.min((performance.now() - t0) / duration, 1.0);
+      const ease = eio(raw);
+
+      // Slow planet rotation
+      entrySphere.rotation.y += 0.001;
+
+      // Camera flies in
+      entryCamera.position.z = camStart + (0.01 - camStart) * ease;
+      entryCamera.fov = 45 + (this.fov - 45) * ease;
+      entryCamera.aspect = this.camera.aspect;
+      entryCamera.updateProjectionMatrix();
+
+      // UV morph (handled in shader via uT)
+      shaderMat.uniforms.uT.value = raw;
+
+      this.renderer.render(entryScene, entryCamera);
+
+      if (raw >= 1.0) {
+        // ── Handoff to main tour ────────────────────────────────────────
+        entryGeo.dispose();
+        shaderMat.dispose();
+
+        this.sphere.visible = true;
+        this.sphere.material = new THREE.MeshBasicMaterial({ map: tex });
+
+        // Match the sphere's rotation so panorama continues seamlessly
+        this.lon = -THREE.MathUtils.radToDeg(entrySphere.rotation.y);
+        this.lat = 0;
+        this.camera.fov = this.fov;
+        this.camera.position.set(0, 0, 0.01);
+        this.camera.updateProjectionMatrix();
+
+        this._entryRender  = null;
+        this._inTransition = false;
+      }
+    };
   }
 
   update() {
-    if (!this.pointerDown) {
-      this.lon+=this.velLon; this.lat+=this.velLat;
-      this.velLon*=.93; this.velLat*=.93;
+    if (!this._inTransition) {
+      if (!this.pointerDown) {
+        this.lon += this.velLon + (this.globeMode ? 0.15 : 0);
+        this.lat += this.velLat;
+        this.velLon*=.93; this.velLat*=.93;
+      }
+      this.lat=Math.max(-85,Math.min(85,this.lat));
     }
-    this.lat=Math.max(-85,Math.min(85,this.lat));
     const phi   = THREE.MathUtils.degToRad(90-this.lat);
     const theta = THREE.MathUtils.degToRad(this.lon);
     this.camera.lookAt(
@@ -994,7 +1274,6 @@ class VirtualTour {
       Math.sin(phi)*Math.sin(theta)
     );
     this.updateHotspots();
-    this.updatePosDisplay();
   }
 }
 
@@ -1018,35 +1297,15 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   function startTour() {
-    // Clip the panorama to a small sphere BEFORE first render (hidden behind splash)
-    const vc = document.getElementById('viewer-container');
-    vc.classList.add('globe-mode');
-
     window.tour = new VirtualTour();
     document.getElementById('loading').classList.add('hidden');
 
-    // Show splash
     const splash = document.getElementById('splash');
     if (splash) {
       splash.classList.remove('hidden');
       splash.addEventListener('click', () => {
-        // Fade out splash
         splash.classList.add('out');
-
-        // Globe expansion: force starting state inline, then animate to full-screen circle
-        vc.style.clipPath = 'circle(16vmin at 50% 50%)';
-        requestAnimationFrame(() => requestAnimationFrame(() => {
-          vc.style.transition = 'clip-path 1.5s cubic-bezier(0.15,0,0.05,1)';
-          vc.style.clipPath    = 'circle(150vmax at 50% 50%)';
-          vc.classList.remove('globe-mode');
-        }));
-
-        // Cleanup after animation completes
-        setTimeout(() => {
-          splash.classList.add('hidden');
-          vc.style.transition = '';
-          vc.style.clipPath    = '';
-        }, 1800);
+        setTimeout(() => splash.classList.add('hidden'), 500);
       }, { once: true });
     }
   }
@@ -1074,34 +1333,16 @@ window.addEventListener('DOMContentLoaded', () => {
   ready.finally(() => {
     startTour();
 
-    // Botó de càrrega de foto directa al Tour
-    const localPhotoBtn = document.getElementById('local-photo-btn');
-    if (localPhotoBtn) {
-      document.getElementById('local-photo-input').addEventListener('change', e => {
-        const file = e.target.files[0];
-        if (!file) return;
-        const s = window.tour.scenes[window.tour.currentIndex];
-        if (!s) return;
-        const blobUrl = URL.createObjectURL(file);
-        new THREE.TextureLoader().load(blobUrl, tex => {
-          tex.minFilter = THREE.LinearFilter;
-          tex.magFilter = THREE.LinearFilter;
-          window.tour.sphere.material.map = tex;
-          window.tour.sphere.material.needsUpdate = true;
-          URL.revokeObjectURL(blobUrl);
-        });
-        PhotoStore.put(s.id, file)
-          .then(() => {
-            const t = document.getElementById('pos-toast');
-            if (t) { t.textContent = 'Foto desada!'; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2200); }
-          })
-          .catch(() => {});
-        e.target.value = '';
-      });
-    }
-
     // Sincronització en viu des del Studio (mateix navegador, una altra pestanya)
     window.addEventListener('storage', e => {
+      if (e.key === 'vg-nadir' || e.key === 'vg-nadir-size') {
+        window.tour.loadNadir();
+        return;
+      }
+      if (e.key === 'vg-logo' || e.key === 'vg-logo-size' || e.key === 'vg-logo-corner') {
+        window.tour.loadLogo();
+        return;
+      }
       if (e.key !== 'vg-tour-scenes') return;
       try {
         applyScenes(JSON.parse(e.newValue));
