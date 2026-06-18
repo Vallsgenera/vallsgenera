@@ -31,6 +31,7 @@ const SCENES = [
     id: 'feina-ocupacio',
     name: 'Feina i Ocupació',
     color: '#0F6E56', shade: '#0a5040',
+    defaultLon: -178.9, defaultLat: 19.8,
     // image: 'images/feina-ocupacio.jpg',
     hotspots: [
       {
@@ -1172,31 +1173,24 @@ class VirtualTour {
      Phase 1 (t=0):  camera at z=camStart, sees sphere as tiny planet
      Phase 2 (0→1):  camera flies in, FOV widens, UV morphs outside→inside
      Phase 3 (t=1):  camera at origin, standard inside-sphere 360° tour     ── */
-  startTinyPlanetTransition(duration) {
-    // Retry until the panorama texture is ready
+  startTinyPlanetTransition(duration, endLon = 0, endLat = 0) {
     const tex = this.sphere.material && this.sphere.material.map
       ? this.sphere.material.map : null;
-    if (!tex) { setTimeout(() => this.startTinyPlanetTransition(duration), 150); return; }
+    if (!tex) { setTimeout(() => this.startTinyPlanetTransition(duration, endLon, endLat), 150); return; }
 
     this._inTransition = true;
-    this.sphere.visible = false; // hide main sphere while entry plays
+    this.sphere.visible = false;
 
-    // ── Entry scene: small sphere visible from outside ──────────────────
     const R = 5;
     const camStart = 16;
     const entryScene  = new THREE.Scene();
-    const entryCamera = new THREE.PerspectiveCamera(
-      45, this.camera.aspect, 0.01, 200
-    );
+    const entryCamera = new THREE.PerspectiveCamera(45, this.camera.aspect, 0.01, 200);
     entryCamera.position.set(0, 0, camStart);
     entryCamera.lookAt(0, 0, 0);
 
     const entryGeo = new THREE.SphereGeometry(R, 64, 48);
     const shaderMat = new THREE.ShaderMaterial({
-      uniforms: {
-        uTexture: { value: tex },
-        uT:       { value: 0.0 },
-      },
+      uniforms: { uTexture: { value: tex }, uT: { value: 0.0 } },
       vertexShader: `
         varying vec2 vUv;
         void main(){
@@ -1209,8 +1203,6 @@ class VirtualTour {
         uniform float uT;
         varying vec2 vUv;
         void main(){
-          // Seen from outside: standard UV.
-          // Seen from inside: must mirror-u to correct the back-face flip.
           vec2 uvOut = vUv;
           vec2 uvIn  = vec2(1.0 - vUv.x, vUv.y);
           vec2 uv = mix(uvOut, uvIn, smoothstep(0.3, 0.85, uT));
@@ -1223,39 +1215,40 @@ class VirtualTour {
     const entrySphere = new THREE.Mesh(entryGeo, shaderMat);
     entryScene.add(entrySphere);
 
-    // ── Animate ─────────────────────────────────────────────────────────
+    // Sphere must finish at rotation.y = degToRad(-endLon) so that
+    // this.lon = -radToDeg(rotation.y) = endLon at handoff
+    const targetRotY = THREE.MathUtils.degToRad(-endLon);
+
     const t0 = performance.now();
-    const eio = t => t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2,3)/2; // ease-in-out cubic
+    const eio = t => t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2,3)/2;
 
     this._entryRender = () => {
       const raw  = Math.min((performance.now() - t0) / duration, 1.0);
       const ease = eio(raw);
 
-      // Slow planet rotation
-      entrySphere.rotation.y += 0.001;
+      // Sphere rotates smoothly to the target longitude
+      entrySphere.rotation.y = targetRotY * ease;
 
-      // Camera flies in
+      // Camera flies in and gradually tilts upward toward target latitude
       entryCamera.position.z = camStart + (0.01 - camStart) * ease;
       entryCamera.fov = 45 + (this.fov - 45) * ease;
       entryCamera.aspect = this.camera.aspect;
       entryCamera.updateProjectionMatrix();
+      const latRad = THREE.MathUtils.degToRad(endLat * ease);
+      entryCamera.lookAt(0, Math.sin(latRad) * 200, -Math.cos(latRad) * 200);
 
-      // UV morph (handled in shader via uT)
       shaderMat.uniforms.uT.value = raw;
-
       this.renderer.render(entryScene, entryCamera);
 
       if (raw >= 1.0) {
-        // ── Handoff to main tour ────────────────────────────────────────
         entryGeo.dispose();
         shaderMat.dispose();
 
         this.sphere.visible = true;
         this.sphere.material = new THREE.MeshBasicMaterial({ map: tex });
 
-        // Match the sphere's rotation so panorama continues seamlessly
-        this.lon = -THREE.MathUtils.radToDeg(entrySphere.rotation.y);
-        this.lat = 0;
+        this.lon = endLon;
+        this.lat = endLat;
         this.camera.fov = this.fov;
         this.camera.position.set(0, 0, 0.01);
         this.camera.updateProjectionMatrix();
@@ -1313,7 +1306,10 @@ window.addEventListener('DOMContentLoaded', () => {
     if (splash) {
       splash.classList.remove('hidden');
       splash.addEventListener('click', () => {
-        window.tour.startTinyPlanetTransition(2600);
+        const s0 = window.tour.scenes[0] || {};
+        const endLon = s0.defaultLon != null ? s0.defaultLon : 0;
+        const endLat = s0.defaultLat != null ? s0.defaultLat : 0;
+        window.tour.startTinyPlanetTransition(2600, endLon, endLat);
         splash.classList.add('out');
         setTimeout(() => splash.classList.add('hidden'), 550);
       }, { once: true });
