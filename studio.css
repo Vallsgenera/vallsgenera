@@ -361,6 +361,15 @@ input,textarea,select{font-family:inherit;font-size:13px}
 }
 .secondary-btn:hover{background:rgba(255,255,255,.1)}
 
+.go-target-btn{
+  display:flex;align-items:center;justify-content:center;gap:6px;
+  width:100%;padding:9px 14px;border-radius:var(--radius);
+  background:rgba(185,206,0,.1);border:1.5px solid rgba(185,206,0,.3);
+  color:var(--accent);font-size:13px;font-weight:600;cursor:pointer;
+  transition:background var(--dur),border-color var(--dur);
+}
+.go-target-btn:hover{background:rgba(185,206,0,.2);border-color:var(--accent)}
+
 .danger-btn{
   width:calc(100% - 28px);margin:0 14px 14px;
   padding:7px 14px;border-radius:var(--radius);

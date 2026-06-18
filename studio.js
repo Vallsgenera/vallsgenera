@@ -114,6 +114,12 @@ function dynamicFields(type, hs = {}, scenes = [], currentId = '') {
       return `<div class="pp-field">
         <label>Escena de destí</label>
         <select id="hs-targetScene">${opts}</select>
+      </div>
+      <div class="pp-field" style="border-bottom:none;padding-top:6px">
+        <button type="button" id="btn-go-target-scene" class="go-target-btn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+          Editar l'escena de destí
+        </button>
       </div>`;
     }
 
@@ -929,6 +935,19 @@ class Studio {
     // Dynamic fields
     document.getElementById('hs-dynamic-fields').innerHTML =
       dynamicFields(hs.type, hs, this.scenes, this.currentScene.id);
+
+    // Nav: button to jump directly to the target scene for editing
+    if (hs.type === 'nav') {
+      const goBtn = document.getElementById('btn-go-target-scene');
+      if (goBtn) {
+        goBtn.addEventListener('click', () => {
+          const sel = document.getElementById('hs-targetScene');
+          const targetId = sel ? sel.value : hs.targetScene;
+          const idx = this.scenes.findIndex(s => s.id === targetId);
+          if (idx >= 0) this.switchScene(idx);
+        });
+      }
+    }
 
     // Position
     document.getElementById('hs-lon-val').textContent = hs.lon.toFixed(1);
