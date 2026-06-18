@@ -416,6 +416,8 @@ class VirtualTour {
     this._audioMuted   = false;
     this._nadirMesh    = null;
 
+    this.transStyle = localStorage.getItem('vg-transition-style') || 'fade';
+
     this.init();
   }
 
@@ -583,7 +585,11 @@ class VirtualTour {
       const s = this.scenes[index];
 
       document.querySelectorAll('.dept-btn').forEach((b,i)=>b.classList.toggle('active',i===index));
-      document.getElementById('scene-title').textContent = s.name;
+      const titleEl = document.getElementById('scene-title');
+      titleEl.classList.remove('scene-title-enter');
+      void titleEl.offsetWidth;
+      titleEl.textContent = s.name;
+      titleEl.classList.add('scene-title-enter');
       document.querySelectorAll('.scene-dot').forEach((d,i)=>d.classList.toggle('active',i===index));
 
       // UI immediata (hotspots, càmera) – independent de la foto
@@ -600,11 +606,7 @@ class VirtualTour {
     };
 
     if (animate) {
-      overlay.classList.add('active');
-      setTimeout(() => {
-        doLoad();
-        setTimeout(() => { overlay.classList.remove('active'); this.isTransitioning = false; }, 280);
-      }, 250);
+      this._doTransition(overlay, () => doLoad(), () => { this.isTransitioning = false; });
     } else {
       doLoad();
       this.isTransitioning = false;
@@ -708,6 +710,12 @@ class VirtualTour {
 
       el.addEventListener('click', e => { e.stopPropagation(); this.handleHotspot(hs); });
     });
+
+    // Staggered cinematic pop-in for standard hotspots
+    overlay.querySelectorAll('.hotspot-inner').forEach((inner, i) => {
+      inner.style.setProperty('--hs-delay', `${i * 60}ms`);
+      inner.classList.add('anim-in');
+    });
   }
 
   handleHotspot(hs) {
@@ -729,6 +737,60 @@ class VirtualTour {
         if (idx >= 0) this.loadScene(idx);
         break;
       }
+    }
+  }
+
+  /* ── Scene transition engine ── */
+  _doTransition(overlay, onMidpoint, onDone) {
+    const t = this.transStyle || 'fade';
+    const base = 'position:absolute;inset:0;pointer-events:none;z-index:15;';
+    const clear = () => { overlay.style.cssText = base + 'opacity:0;'; };
+
+    if (t === 'portal') {
+      overlay.style.cssText = base + 'background:#000;clip-path:circle(0% at 50% 50%);';
+      void overlay.offsetWidth;
+      overlay.style.transition = 'clip-path .38s cubic-bezier(.4,0,.6,1)';
+      overlay.style.clipPath = 'circle(150% at 50% 50%)';
+      setTimeout(() => {
+        onMidpoint();
+        overlay.style.transition = 'clip-path .42s cubic-bezier(.4,0,.6,1)';
+        overlay.style.clipPath = 'circle(0% at 50% 50%)';
+        setTimeout(() => { clear(); onDone(); }, 450);
+      }, 400);
+    } else if (t === 'wipe') {
+      overlay.style.cssText = base + 'background:#0a1a14;transform:translateX(-100%);';
+      void overlay.offsetWidth;
+      overlay.style.transition = 'transform .35s cubic-bezier(.4,0,.2,1)';
+      overlay.style.transform = 'translateX(0%)';
+      setTimeout(() => {
+        onMidpoint();
+        overlay.style.transition = 'transform .35s cubic-bezier(.4,0,.2,1)';
+        overlay.style.transform = 'translateX(100%)';
+        setTimeout(() => { clear(); onDone(); }, 370);
+      }, 370);
+    } else if (t === 'flash') {
+      overlay.style.cssText = base + 'background:white;opacity:0;';
+      void overlay.offsetWidth;
+      overlay.style.transition = 'opacity .08s linear';
+      overlay.style.opacity = '1';
+      setTimeout(() => {
+        onMidpoint();
+        overlay.style.transition = 'opacity .32s ease-out';
+        overlay.style.opacity = '0';
+        setTimeout(() => { clear(); onDone(); }, 350);
+      }, 100);
+    } else {
+      // fade (default)
+      overlay.style.cssText = base + 'background:#0a1a14;opacity:0;';
+      void overlay.offsetWidth;
+      overlay.style.transition = 'opacity .25s ease';
+      overlay.style.opacity = '1';
+      setTimeout(() => {
+        onMidpoint();
+        overlay.style.transition = 'opacity .28s ease';
+        overlay.style.opacity = '0';
+        setTimeout(() => { clear(); onDone(); }, 300);
+      }, 270);
     }
   }
 
@@ -1347,6 +1409,10 @@ window.addEventListener('DOMContentLoaded', () => {
       }
       if (e.key === 'vg-logo' || e.key === 'vg-logo-size' || e.key === 'vg-logo-corner') {
         window.tour.loadLogo();
+        return;
+      }
+      if (e.key === 'vg-transition-style') {
+        window.tour.transStyle = e.newValue || 'fade';
         return;
       }
       if (e.key !== 'vg-tour-scenes') return;

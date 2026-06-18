@@ -880,6 +880,12 @@ class Studio {
     document.getElementById('prop-min-fov').value = s.minFov != null ? s.minFov : 30;
     document.getElementById('prop-max-fov').value = s.maxFov != null ? s.maxFov : 100;
 
+    // Transition picker
+    const activeTrans = localStorage.getItem('vg-transition-style') || 'fade';
+    document.querySelectorAll('#trans-picker .trans-pill').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.trans === activeTrans);
+    });
+
     // Hotspot mini list
     this.renderHsMiniList();
     this.renderDecalMiniList();
@@ -1416,6 +1422,15 @@ class Studio {
     document.getElementById('prop-default-lat').addEventListener('change', () => { this.saveSceneProps(); this.saveData(); });
     document.getElementById('prop-min-fov').addEventListener('change', () => { this.saveSceneProps(); this.saveData(); });
     document.getElementById('prop-max-fov').addEventListener('change', () => { this.saveSceneProps(); this.saveData(); });
+
+    // Transition picker
+    document.getElementById('trans-picker').addEventListener('click', e => {
+      const btn = e.target.closest('.trans-pill');
+      if (!btn) return;
+      const val = btn.dataset.trans;
+      localStorage.setItem('vg-transition-style', val);
+      document.querySelectorAll('#trans-picker .trans-pill').forEach(b => b.classList.toggle('active', b === btn));
+    });
 
     document.getElementById('btn-capture-view').addEventListener('click', () => {
       const s = this.currentScene;
