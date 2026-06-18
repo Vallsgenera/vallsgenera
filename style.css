@@ -76,9 +76,10 @@ button{font-family:inherit;cursor:pointer}
 /* ── Splash / Landing page ── */
 #splash{
   position:fixed;inset:0;z-index:860;
-  background:url('images/landing.jpg') center/cover no-repeat,#0d4035;
+  background:url('images/landing.jpg') center/cover no-repeat,#0d1a12;
   cursor:pointer;
-  transition:opacity .5s ease;
+  transition:opacity .35s ease;
+  will-change:opacity;
 }
 #splash.hidden{display:none!important}
 #splash.out{opacity:0;pointer-events:none}

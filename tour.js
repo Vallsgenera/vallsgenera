@@ -1313,8 +1313,9 @@ window.addEventListener('DOMContentLoaded', () => {
     if (splash) {
       splash.classList.remove('hidden');
       splash.addEventListener('click', () => {
+        window.tour.startTinyPlanetTransition(2600);
         splash.classList.add('out');
-        setTimeout(() => splash.classList.add('hidden'), 500);
+        setTimeout(() => splash.classList.add('hidden'), 550);
       }, { once: true });
     }
   }
