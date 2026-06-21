@@ -263,7 +263,6 @@ button{font-family:inherit;cursor:pointer}
 /* ── Hotspots ── */
 #hotspots-overlay{
   position:absolute;inset:0;pointer-events:none;z-index:10;
-  perspective:1200px;perspective-origin:50% 50%;
 }
 
 .hotspot{
@@ -272,6 +271,7 @@ button{font-family:inherit;cursor:pointer}
   transition:opacity .2s var(--ease);
 }
 .hotspot-info,.hotspot-video,.hotspot-image,.hotspot-link{
+  perspective:400px;
   transform-style:preserve-3d;
 }
 .hotspot-inner{
