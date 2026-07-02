@@ -1393,10 +1393,30 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   } catch(e) {}
 
-  const ready = hasLocal
-    ? Promise.resolve()
-    : fetch('scenes.json', { cache: 'no-cache' }).then(r => r.ok ? r.json() : null)
-        .then(d => { if (d) applyScenes(d); }).catch(() => {});
+  // Fallback final: scenes.json publicat al repositori
+  const fromJson = () => fetch('scenes.json', { cache: 'no-cache' })
+    .then(r => r.ok ? r.json() : null)
+    .then(d => { if (d) applyScenes(d); })
+    .catch(() => {});
+
+  // Ordre de càrrega:
+  //   1) Edicions locals del Studio (aquest navegador) → prioritat, per veure els canvis a l'instant
+  //   2) Núvol propi (Supabase) → font de veritat publicada per a tots els visitants
+  //   3) scenes.json del repositori → fallback si el núvol no respon
+  let ready;
+  if (hasLocal) {
+    ready = Promise.resolve();
+  } else if (typeof sbLoadScenes === 'function') {
+    ready = sbLoadScenes()
+      .then(scenes => {
+        if (scenes && scenes.length) { applyScenes(scenes); return true; }
+        return false;
+      })
+      .then(ok => ok ? null : fromJson())
+      .catch(() => fromJson());
+  } else {
+    ready = fromJson();
+  }
 
   ready.finally(() => {
     startTour();

@@ -50,28 +50,39 @@ function dynamicFields(type, hs = {}, scenes = [], currentId = '') {
         <textarea id="hs-content" rows="5" placeholder="Text informatiu que apareixerà al panell...">${hs.content || ''}</textarea>
       </div>` + iconPickerHTML(hs.icon);
 
-    case 'video':
+    case 'video': {
+      const isEmbed  = /youtube\.com|youtu\.be|vimeo\.com/.test(hs.videoUrl || '');
+      const uploaded = !!hs._videoUploaded || (/^https?:\/\//.test(hs.videoUrl || '') && !isEmbed);
+      const localMode = uploaded || !!hs.videoLocal;
       return `<div class="pp-field">
         <label>Font del vídeo</label>
         <div class="video-source-tabs">
-          <button class="vsrc-tab ${!hs.videoLocal ? 'active' : ''}" data-src="web">YouTube / Vimeo</button>
-          <button class="vsrc-tab ${hs.videoLocal ? 'active' : ''}" data-src="local">Fitxer local</button>
+          <button class="vsrc-tab ${!localMode ? 'active' : ''}" data-src="web">YouTube / Vimeo</button>
+          <button class="vsrc-tab ${localMode ? 'active' : ''}" data-src="local">Puja vídeo</button>
         </div>
       </div>
-      <div id="hs-video-web" class="pp-field" ${hs.videoLocal ? 'style="display:none"' : ''}>
+      <div id="hs-video-web" class="pp-field" ${localMode ? 'style="display:none"' : ''}>
         <label>URL embed</label>
-        <input type="text" id="hs-videoUrl" placeholder="https://www.youtube.com/embed/ID" value="${hs.videoLocal ? '' : (hs.videoUrl || '')}">
+        <input type="text" id="hs-videoUrl" placeholder="https://www.youtube.com/embed/ID" value="${isEmbed ? (hs.videoUrl || '') : ''}">
         <p class="field-hint">youtube.com/embed/ID_VIDEO &nbsp;·&nbsp; player.vimeo.com/video/ID</p>
       </div>
-      <div id="hs-video-local" class="pp-field" ${!hs.videoLocal ? 'style="display:none"' : ''}>
-        <label>Ruta del vídeo</label>
+      <div id="hs-video-local" class="pp-field" ${!localMode ? 'style="display:none"' : ''}>
+        <label>Vídeo <span class="label-hint">(es puja al teu núvol)</span></label>
+        <div class="photo-drop" id="hs-vid-drop">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/>
+          </svg>
+          <p id="hs-vid-name">${uploaded ? 'Vídeo pujat ✓' : 'Arrossega o clica per pujar'}</p>
+          <input type="file" id="hs-vid-file" accept=".mp4,.webm,.mov,.m4v,video/*">
+        </div>
+        <p class="field-hint">O ruta manual al repositori: <code>videos/nom.mp4</code></p>
         <input type="text" id="hs-videoLocal" placeholder="videos/nom-video.mp4" value="${hs.videoLocal || ''}">
-        <p class="field-hint">Posa el fitxer a la carpeta <code>videos/</code> del repositori</p>
       </div>
       <div class="pp-field">
         <label>Peu de vídeo <span class="label-hint">(opcional)</span></label>
         <input type="text" id="hs-caption" placeholder="Descripció del vídeo" value="${hs.caption || ''}">
       </div>` + iconPickerHTML(hs.icon);
+    }
 
     case 'image': {
       const hasBlob = hs._hasImgBlob;
@@ -245,7 +256,18 @@ class Studio {
     if (saved) {
       try { this.scenes = JSON.parse(saved); await this.migrateEmbeddedPhotos(); return; } catch(e) {}
     }
-    // 2) Primer cop en aquest origen: carrega el scenes.json publicat (si n'hi ha)
+    // 2) Núvol propi (Supabase): la versió publicada
+    if (typeof sbLoadScenes === 'function') {
+      try {
+        const cloud = await sbLoadScenes();
+        if (cloud && cloud.length) {
+          this.scenes = cloud;
+          await this.migrateEmbeddedPhotos();
+          return;
+        }
+      } catch(e) {}
+    }
+    // 3) scenes.json publicat al repositori (si n'hi ha)
     try {
       const r = await fetch('scenes.json', { cache: 'no-store' });
       if (r.ok) {
@@ -969,13 +991,18 @@ class Studio {
       data.content = readField('hs-content');
     }
     if (type === 'video') {
+      const existing = this.currentScene.hotspots.find(h => h.id === this.selectedHsId);
       const localActive = document.querySelector('.vsrc-tab.active[data-src="local"]');
       if (localActive) {
-        data.videoLocal = readField('hs-videoLocal');
-        data.videoUrl = '';
-      } else {
-        data.videoUrl = readField('hs-videoUrl');
+        const manualPath = readField('hs-videoLocal').trim();
+        // Prioritat: ruta manual escrita > vídeo pujat al núvol (guardat a l'objecte)
+        data.videoUrl = manualPath || (existing?.videoUrl || '');
         data.videoLocal = '';
+        data._videoUploaded = !manualPath && !!existing?._videoUploaded;
+      } else {
+        data.videoUrl = readField('hs-videoUrl').trim();
+        data.videoLocal = '';
+        data._videoUploaded = false;
       }
       data.caption = readField('hs-caption');
     }
@@ -1137,14 +1164,28 @@ class Studio {
 
     new THREE.TextureLoader().load(url, tex => this.applyTex(tex));
 
-    // Desat PERSISTENT a IndexedDB (sobreviu a recàrregues i el llegeix el Tour)
+    // Desat PERSISTENT a IndexedDB (preview local, sobreviu a recàrregues)
     PhotoStore.put(s.id, file).then(() => {
       this.saveData();          // sincronitza metadades amb el Tour
       this.renderSceneList();
-      this.showToast('Foto desada — visible al Tour');
-    }).catch(() => {
-      this.showToast('Foto carregada (només preview, no s\'ha pogut desar)');
-    });
+    }).catch(() => {});
+
+    // Pujada al NÚVOL propi (Supabase) → URL pública visible per a tothom
+    const ext = (safeName.match(/\.(\w+)$/) || [,'jpg'])[1];
+    if (typeof sbUpload === 'function' && sbIsConfigured()) {
+      this.showToast('Pujant foto al núvol…');
+      sbUpload(`photos/${s.id}.${ext}`, file).then(publicUrl => {
+        s.image = publicUrl;
+        document.getElementById('prop-image-path').value = publicUrl;
+        this.saveData();
+        this.renderSceneList();
+        this.showToast('Foto al núvol ✓ Publica per fer-la visible a tothom');
+      }).catch(err => {
+        this.showToast('Foto en local. Error al núvol: ' + (err.message || err));
+      });
+    } else {
+      this.showToast('Foto desada (local). Núvol no disponible.');
+    }
   }
 
   /* ── Save scene props ── */
@@ -1232,6 +1273,56 @@ class Studio {
     canvas.getContext('2d').drawImage(bitmap, 0, 0, w, h);
     bitmap.close && bitmap.close();
     return canvas.toDataURL('image/jpeg', QUALITY);
+  }
+
+  /* ── Publica al núvol propi (Supabase) ──
+     1) Assegura que tot el mèdia (fotos incloses les antigues d'IndexedDB)
+        estigui pujat al núvol amb URL pública.
+     2) Desa l'array d'escenes a la taula tour_data → visible per a tothom. */
+  async publishToCloud() {
+    if (!(typeof sbIsConfigured === 'function' && sbIsConfigured())) {
+      this.showToast('El núvol no està configurat o no respon');
+      return;
+    }
+    this.saveSceneProps();
+    const btn = document.getElementById('btn-publish');
+    const orig = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.textContent = 'Publicant…'; }
+
+    try {
+      // 1) Puja al núvol qualsevol foto d'escena que encara sigui local (IndexedDB)
+      for (const s of this.scenes) {
+        if (sbIsRemoteUrl(s.image)) continue;      // ja és una URL del núvol/externa
+        let blob = null;
+        try { blob = await PhotoStore.get(s.id); } catch(e) {}
+        if (blob) {
+          try {
+            const url = await sbUpload(`photos/${s.id}.jpg`, blob);
+            s.image = url;
+          } catch(e) { console.warn('pujada foto', s.id, e); }
+        }
+        // 2) Fotos de hotspots encara locals
+        for (const hs of (s.hotspots || [])) {
+          if (hs.type === 'image' && !sbIsRemoteUrl(hs.imageUrl)) {
+            let hb = null;
+            try { hb = await PhotoStore.get('hs-img-' + hs.id); } catch(e) {}
+            if (hb) {
+              try { hs.imageUrl = await sbUpload(`hs-img/${hs.id}.jpg`, hb); hs._hasImgBlob = false; }
+              catch(e) { console.warn('pujada hs-img', hs.id, e); }
+            }
+          }
+        }
+      }
+
+      // 3) Publica les dades de les escenes
+      await sbPublishScenes(this.scenes);
+      this.saveData(true);
+      if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+      this.showToast('✓ Publicat al núvol — visible per a tothom');
+    } catch (err) {
+      if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+      this.showToast('Error publicant: ' + (err.message || err));
+    }
   }
 
   async exportJSON() {
@@ -1399,6 +1490,7 @@ class Studio {
       this.saveSceneProps();
       this.saveData();
     });
+    document.getElementById('btn-publish').addEventListener('click', () => this.publishToCloud());
     document.getElementById('btn-export').addEventListener('click', () => this.showExportModal());
     document.getElementById('btn-new-scene').addEventListener('click', () => this.addScene());
 
@@ -1522,20 +1614,64 @@ class Studio {
       if (this.selectedHsId) this.persistHotspotEdits();
     });
 
-    // Hotspot image upload (inside dynamic fields)
+    // Hotspot image + video upload (inside dynamic fields)
     dynFields.addEventListener('change', e => {
-      const fileInput = e.target.closest('#hs-img-file');
-      if (!fileInput || !fileInput.files[0]) return;
-      const file = fileInput.files[0];
-      const hs = this.currentScene.hotspots.find(h => h.id === this.selectedHsId);
-      if (!hs) return;
-      PhotoStore.put('hs-img-' + hs.id, file).then(() => {
-        hs._hasImgBlob = true;
-        hs.imageUrl = '';
-        document.getElementById('hs-img-name').textContent = 'Imatge pujada ✓';
-        this.saveData(true);
-        this.showToast('Imatge del hotspot desada');
-      }).catch(() => this.showToast('Error al desar la imatge'));
+      // ── Imatge del hotspot ──
+      const imgInput = e.target.closest('#hs-img-file');
+      if (imgInput && imgInput.files[0]) {
+        const file = imgInput.files[0];
+        const hs = this.currentScene.hotspots.find(h => h.id === this.selectedHsId);
+        if (!hs) return;
+        PhotoStore.put('hs-img-' + hs.id, file).then(() => {
+          hs._hasImgBlob = true;
+          this.saveData(true);
+        }).catch(() => {});
+        // Núvol propi
+        const ext = (file.name.match(/\.(\w+)$/) || [,'jpg'])[1];
+        if (typeof sbUpload === 'function' && sbIsConfigured()) {
+          document.getElementById('hs-img-name').textContent = 'Pujant…';
+          sbUpload(`hs-img/${hs.id}.${ext}`, file).then(publicUrl => {
+            hs.imageUrl = publicUrl;
+            hs._hasImgBlob = false;
+            document.getElementById('hs-img-name').textContent = 'Imatge al núvol ✓';
+            this.saveData(true);
+            this.showToast('Imatge al núvol ✓');
+          }).catch(err => {
+            document.getElementById('hs-img-name').textContent = 'Imatge pujada ✓ (local)';
+            this.showToast('Imatge en local. Error al núvol: ' + (err.message || err));
+          });
+        } else {
+          document.getElementById('hs-img-name').textContent = 'Imatge pujada ✓ (local)';
+        }
+        return;
+      }
+
+      // ── Vídeo del hotspot ──
+      const vidInput = e.target.closest('#hs-vid-file');
+      if (vidInput && vidInput.files[0]) {
+        const file = vidInput.files[0];
+        const hs = this.currentScene.hotspots.find(h => h.id === this.selectedHsId);
+        if (!hs) return;
+        if (!(typeof sbUpload === 'function' && sbIsConfigured())) {
+          this.showToast('El núvol no està disponible per pujar vídeos');
+          return;
+        }
+        const ext = (file.name.match(/\.(\w+)$/) || [,'mp4'])[1];
+        const nameEl = document.getElementById('hs-vid-name');
+        if (nameEl) nameEl.textContent = 'Pujant vídeo…';
+        sbUpload(`videos/${hs.id}.${ext}`, file).then(publicUrl => {
+          hs.videoUrl = publicUrl;
+          hs.videoLocal = '';
+          hs._videoUploaded = true;
+          if (nameEl) nameEl.textContent = 'Vídeo pujat ✓';
+          this.saveData(true);
+          this.showToast('Vídeo al núvol ✓ Publica per fer-lo visible');
+        }).catch(err => {
+          if (nameEl) nameEl.textContent = 'Error al pujar';
+          this.showToast('Error pujant vídeo: ' + (err.message || err));
+        });
+        return;
+      }
     });
 
     // Decal: add new
