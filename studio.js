@@ -508,6 +508,45 @@ class Studio {
       });
       overlay.appendChild(handle);
     });
+
+    // Central move handle — arrossega tot el decal per la foto
+    const move = document.createElement('div');
+    move.className = 'dcl-move';
+    move.title = 'Arrossega per moure';
+    move.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/>
+      <polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/>
+      <line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/>
+    </svg>`;
+    let startLL = null, startCorners = null;
+    move.addEventListener('pointerdown', e => {
+      e.stopPropagation(); e.preventDefault();
+      move.setPointerCapture(e.pointerId);
+      this._movingDecal = true;
+      startLL = this._screenToLonLat(e.clientX, e.clientY);
+      const d = (this.currentScene.decals || []).find(d => d.id === this.selectedDecalId);
+      startCorners = d ? JSON.parse(JSON.stringify(d.corners)) : null;
+    });
+    move.addEventListener('pointermove', e => {
+      if (!this._movingDecal || !startCorners) return;
+      const cur = this._screenToLonLat(e.clientX, e.clientY);
+      let dLon = cur.lon - startLL.lon;
+      if (dLon > 180) dLon -= 360; else if (dLon < -180) dLon += 360;
+      const dLat = cur.lat - startLL.lat;
+      const d = (this.currentScene.decals || []).find(d => d.id === this.selectedDecalId);
+      if (!d) return;
+      ['tl','tr','br','bl'].forEach(k => {
+        d.corners[k] = {
+          lon: startCorners[k].lon + dLon,
+          lat: Math.max(-85, Math.min(85, startCorners[k].lat + dLat))
+        };
+      });
+      this.updateDecalMesh(d);
+    });
+    move.addEventListener('pointerup', () => {
+      if (this._movingDecal) { this._movingDecal = false; this.saveData(true); }
+    });
+    overlay.appendChild(move);
   }
 
   updateDecalHandlePositions() {
@@ -519,19 +558,34 @@ class Studio {
     const W = container.clientWidth, H = container.clientHeight;
     const camDir = new THREE.Vector3();
     this.camera.getWorldDirection(camDir);
+    const project = (lon, lat) => {
+      const phi = THREE.MathUtils.degToRad(90 - lat);
+      const th  = THREE.MathUtils.degToRad(lon);
+      const dir = new THREE.Vector3(Math.sin(phi)*Math.cos(th), Math.cos(phi), Math.sin(phi)*Math.sin(th));
+      if (camDir.dot(dir) < 0.05) return null;
+      const pos = dir.clone().multiplyScalar(490);
+      pos.project(this.camera);
+      return { x: (pos.x+1)/2*W, y: -(pos.y-1)/2*H };
+    };
     overlay.querySelectorAll('.dcl-handle').forEach(handle => {
       const c = decal.corners[handle.dataset.corner];
       if (!c) return;
-      const phi = THREE.MathUtils.degToRad(90 - c.lat);
-      const th  = THREE.MathUtils.degToRad(c.lon);
-      const dir = new THREE.Vector3(Math.sin(phi)*Math.cos(th), Math.cos(phi), Math.sin(phi)*Math.sin(th));
-      if (camDir.dot(dir) < 0.05) { handle.style.display = 'none'; return; }
-      const pos = dir.clone().multiplyScalar(490);
-      pos.project(this.camera);
+      const p = project(c.lon, c.lat);
+      if (!p) { handle.style.display = 'none'; return; }
       handle.style.display = 'block';
-      handle.style.left = `${(pos.x+1)/2*W}px`;
-      handle.style.top  = `${-(pos.y-1)/2*H}px`;
+      handle.style.left = `${p.x}px`;
+      handle.style.top  = `${p.y}px`;
     });
+    // Move handle at the decal centre
+    const moveEl = overlay.querySelector('.dcl-move');
+    if (moveEl) {
+      const cc = decal.corners;
+      const clon = (cc.tl.lon + cc.tr.lon + cc.br.lon + cc.bl.lon) / 4;
+      const clat = (cc.tl.lat + cc.tr.lat + cc.br.lat + cc.bl.lat) / 4;
+      const p = project(clon, clat);
+      if (!p) { moveEl.style.display = 'none'; }
+      else { moveEl.style.display = 'flex'; moveEl.style.left = `${p.x}px`; moveEl.style.top = `${p.y}px`; }
+    }
   }
 
   _screenToLonLat(clientX, clientY) {
@@ -629,8 +683,50 @@ class Studio {
     this.showToast('Imatge afegida — arrossega les cantonades grogues per ajustar');
   }
 
-  addTextDecal() {
-    const center = { lon: this.lon, lat: this.lat };
+  /* Arrossega el botó "Text" i deixa'l anar sobre la foto per col·locar-lo.
+     Un clic simple (sense arrossegar) el posa al centre de la vista. */
+  _setupTextDragPlace() {
+    const btn = document.getElementById('fab-add-text');
+    if (!btn) return;
+    const viewer = document.getElementById('studio-viewer');
+    let dragging = false, moved = false, ghost = null;
+
+    const onMove = (e) => {
+      if (!dragging) return;
+      if (Math.abs(e.movementX) + Math.abs(e.movementY) > 0) moved = true;
+      if (ghost) { ghost.style.left = e.clientX + 'px'; ghost.style.top = e.clientY + 'px'; }
+    };
+    const onUp = (e) => {
+      if (!dragging) return;
+      dragging = false;
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      if (ghost) { ghost.remove(); ghost = null; }
+      const r = viewer.getBoundingClientRect();
+      const inside = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+      if (moved && inside) {
+        this.addTextDecal(this._screenToLonLat(e.clientX, e.clientY));
+      } else if (!moved) {
+        this.addTextDecal();               // clic simple → centre de la vista
+      }
+      // arrossegat però deixat fora del visor → cancel·lat
+    };
+    btn.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      dragging = true; moved = false;
+      ghost = document.createElement('div');
+      ghost.className = 'drag-ghost';
+      ghost.textContent = 'Text';
+      ghost.style.left = e.clientX + 'px';
+      ghost.style.top  = e.clientY + 'px';
+      document.body.appendChild(ghost);
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onUp);
+    });
+  }
+
+  addTextDecal(center) {
+    center = center || { lon: this.lon, lat: this.lat };
     const W = 20, H = 10;
     const id = 'dcl-' + Date.now().toString(36);
     const decal = {
@@ -657,7 +753,7 @@ class Studio {
     this.renderDecalMiniList();
     this.selectDecal(id);
     this.saveData(true);
-    this.showToast('Text afegit — edita el contingut i arrossega les cantonades grogues');
+    this.showToast('Text afegit — arrossega el cercle central per moure\'l o les cantonades per redimensionar');
   }
 
   _createTextDecalTex(decal) {
@@ -1488,7 +1584,7 @@ class Studio {
     document.getElementById('btn-cancel-add').addEventListener('click', () => this.setAddMode(false));
 
     // Floating overlay toolbar
-    document.getElementById('fab-add-text').addEventListener('click', () => this.addTextDecal());
+    this._setupTextDragPlace();
     document.getElementById('fab-add-image').addEventListener('click', () => document.getElementById('decal-img-input').click());
 
     // Settings modal (portada / logo / nadir)

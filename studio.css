@@ -720,6 +720,40 @@ input,textarea,select{font-family:inherit;font-size:13px}
 }
 .dcl-handle:active { cursor: grabbing; transform: translate(-50%,-50%) scale(1.25); }
 
+/* Central move handle — arrossega tot el decal */
+.dcl-move {
+  position: absolute;
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  background: rgba(245,158,11,.92);
+  border: 2px solid #fff;
+  color: #1a1a1a;
+  transform: translate(-50%, -50%);
+  pointer-events: all;
+  cursor: grab;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,.5);
+  transition: transform .1s;
+  touch-action: none;
+}
+.dcl-move svg { width: 16px; height: 16px; }
+.dcl-move:active { cursor: grabbing; transform: translate(-50%,-50%) scale(1.12); }
+
+/* Ghost que segueix el cursor en arrossegar el botó Text */
+.drag-ghost {
+  position: fixed;
+  transform: translate(-50%, -50%);
+  z-index: 2000;
+  pointer-events: none;
+  padding: 6px 14px;
+  border-radius: 6px;
+  background: rgba(20,20,22,.9);
+  border: 1.5px dashed var(--accent);
+  color: #fff;
+  font-size: 15px; font-weight: 700;
+  box-shadow: 0 6px 20px rgba(0,0,0,.4);
+}
+
 /* ── Decal mini-list section in scene props ── */
 .pp-decal-list {
   border-top: 1px solid var(--border);
