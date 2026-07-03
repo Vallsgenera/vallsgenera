@@ -51,6 +51,31 @@ async function sbLoadScenes() {
   } catch (e) { console.warn('[supabase] loadScenes:', e); return null; }
 }
 
+/* ── Config global del tour (portada, etc.) ──
+   Es desa en una fila separada (id='config') reutilitzant la columna jsonb. */
+async function sbLoadConfig() {
+  const c = sbClient();
+  if (!c) return {};
+  try {
+    const { data, error } = await c
+      .from('tour_data').select('scenes').eq('id', 'config').maybeSingle();
+    if (error) { console.warn('[supabase] loadConfig:', error.message); return {}; }
+    return (data && data.scenes && typeof data.scenes === 'object' && !Array.isArray(data.scenes))
+      ? data.scenes : {};
+  } catch (e) { console.warn('[supabase] loadConfig:', e); return {}; }
+}
+
+async function sbSaveConfig(config) {
+  const c = sbClient();
+  if (!c) throw new Error('Núvol no disponible');
+  const { error } = await c.from('tour_data').upsert({
+    id: 'config',
+    scenes: config,
+    updated_at: new Date().toISOString()
+  });
+  if (error) throw error;
+}
+
 /* Publica (desa) l'array d'escenes al núvol perquè ho vegi tothom */
 async function sbPublishScenes(scenes) {
   const c = sbClient();

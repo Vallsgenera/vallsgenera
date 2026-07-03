@@ -1367,6 +1367,17 @@ window.addEventListener('DOMContentLoaded', () => {
     const splash = document.getElementById('splash');
     if (splash) {
       splash.classList.remove('hidden');
+      // Portada des del núvol (si n'hi ha) — override del fitxer per defecte
+      const localCover = localStorage.getItem('vg-cover');
+      if (localCover) {
+        splash.style.background = `url('${localCover}') center/cover no-repeat, #0d1a12`;
+      } else if (typeof sbLoadConfig === 'function') {
+        sbLoadConfig().then(cfg => {
+          if (cfg && cfg.cover) {
+            splash.style.background = `url('${cfg.cover}') center/cover no-repeat, #0d1a12`;
+          }
+        }).catch(() => {});
+      }
       splash.addEventListener('click', () => {
         const s0 = window.tour.scenes[0] || {};
         const endLon = s0.defaultLon != null ? s0.defaultLon : 0;

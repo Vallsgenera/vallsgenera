@@ -1811,6 +1811,52 @@ class Studio {
       this.showToast('Logo eliminat');
     });
 
+    // Portada (splash) → puja al núvol i publica
+    this._initCover();
+    document.getElementById('cover-input').addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      e.target.value = '';
+      if (!(typeof sbUpload === 'function' && sbIsConfigured())) {
+        this.showToast('El núvol no està disponible per pujar la portada');
+        return;
+      }
+      if (file.size / 1048576 > 50) { this.showToast('La imatge de portada supera els 50 MB'); return; }
+      const ext = (file.name.match(/\.(\w+)$/) || [, 'jpg'])[1];
+      const ph = document.getElementById('cover-placeholder');
+      if (ph) { ph.style.display = ''; ph.textContent = 'Pujant…'; }
+      sbUpload(`cover.${ext}`, file).then(async url => {
+        this._applyCoverPreview(url);
+        localStorage.setItem('vg-cover', url);
+        try {
+          const cfg = await sbLoadConfig();
+          cfg.cover = url;
+          await sbSaveConfig(cfg);
+          this.showToast('Portada publicada ✓ Visible per a tothom');
+        } catch (err) {
+          this.showToast('Portada pujada, però error publicant: ' + (err.message || err));
+        }
+      }).catch(err => {
+        if (ph) ph.textContent = 'Arrossega o clica per pujar';
+        this.showToast('Error pujant portada: ' + (err.message || err));
+      });
+    });
+    const coverDrop = document.getElementById('cover-drop');
+    if (coverDrop) {
+      coverDrop.addEventListener('dragover', ev => { ev.preventDefault(); coverDrop.classList.add('drag-over'); });
+      coverDrop.addEventListener('dragleave', () => coverDrop.classList.remove('drag-over'));
+      coverDrop.addEventListener('drop', ev => {
+        ev.preventDefault(); coverDrop.classList.remove('drag-over');
+        const file = ev.dataTransfer.files[0];
+        if (file && file.type.startsWith('image/')) {
+          const input = document.getElementById('cover-input');
+          const dt = new DataTransfer(); dt.items.add(file);
+          input.files = dt.files;
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      });
+    }
+
     // Nadir patch
     this._initNadir();
     document.getElementById('nadir-input').addEventListener('change', e => {
@@ -1849,6 +1895,35 @@ class Studio {
         localStorage.setItem('vg-logo-corner', btn.dataset.corner);
       });
     });
+  }
+
+  _applyCoverPreview(url) {
+    const img = document.getElementById('cover-preview');
+    const ph  = document.getElementById('cover-placeholder');
+    if (!img) return;
+    if (url) {
+      img.src = url;
+      img.style.display = 'block';
+      if (ph) ph.style.display = 'none';
+    } else {
+      img.removeAttribute('src');
+      img.style.display = 'none';
+      if (ph) { ph.style.display = ''; ph.textContent = 'Arrossega o clica per pujar'; }
+    }
+  }
+
+  async _initCover() {
+    const local = localStorage.getItem('vg-cover');
+    if (local) { this._applyCoverPreview(local); return; }
+    if (typeof sbLoadConfig === 'function') {
+      try {
+        const cfg = await sbLoadConfig();
+        if (cfg && cfg.cover) {
+          this._applyCoverPreview(cfg.cover);
+          localStorage.setItem('vg-cover', cfg.cover);
+        }
+      } catch (e) {}
+    }
   }
 
   _initLogo() {
