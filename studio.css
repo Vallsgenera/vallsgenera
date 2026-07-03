@@ -720,25 +720,6 @@ input,textarea,select{font-family:inherit;font-size:13px}
 }
 .dcl-handle:active { cursor: grabbing; transform: translate(-50%,-50%) scale(1.25); }
 
-/* Central move handle — arrossega tot el decal */
-.dcl-move {
-  position: absolute;
-  width: 30px; height: 30px;
-  border-radius: 50%;
-  background: rgba(245,158,11,.92);
-  border: 2px solid #fff;
-  color: #1a1a1a;
-  transform: translate(-50%, -50%);
-  pointer-events: all;
-  cursor: grab;
-  display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 2px 8px rgba(0,0,0,.5);
-  transition: transform .1s;
-  touch-action: none;
-}
-.dcl-move svg { width: 16px; height: 16px; }
-.dcl-move:active { cursor: grabbing; transform: translate(-50%,-50%) scale(1.12); }
-
 /* Ghost que segueix el cursor en arrossegar el botó Text */
 .drag-ghost {
   position: fixed;
@@ -753,6 +734,49 @@ input,textarea,select{font-family:inherit;font-size:13px}
   font-size: 15px; font-weight: 700;
   box-shadow: 0 6px 20px rgba(0,0,0,.4);
 }
+
+/* ── Text editor modal ── */
+#text-editor-modal{
+  position:fixed;inset:0;z-index:650;
+  display:flex;align-items:center;justify-content:center;
+}
+#text-editor-modal.hidden{display:none}
+.te-panel{width:520px;max-width:94vw}
+.te-body{padding:16px 18px;display:flex;flex-direction:column;gap:14px}
+#te-text{
+  width:100%;min-height:130px;resize:vertical;
+  padding:12px 14px;border-radius:var(--radius);
+  background:var(--bg);border:1px solid var(--border);color:var(--text);
+  font-size:15px;line-height:1.4;outline:none;
+  transition:border-color var(--dur);font-family:inherit;
+}
+#te-text:focus{border-color:var(--accent)}
+.te-controls{display:flex;flex-direction:column;gap:12px}
+.te-ctrl{display:flex;flex-direction:column;gap:5px}
+.te-ctrl label{font-size:12px;font-weight:600;color:var(--text-muted)}
+.te-ctrl input[type=range]{width:100%}
+.te-ctrl input[type=color]{width:100%;height:32px;border:none;border-radius:5px;background:none;cursor:pointer}
+.te-ctrl-row{display:flex;gap:12px;align-items:flex-end}
+.te-ctrl-row .te-ctrl{width:64px}
+.te-ctrl-grow{flex:1;width:auto!important}
+.te-toggles{display:flex;gap:18px}
+.te-toggles label{display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;color:var(--text)}
+.te-footer{
+  padding:12px 18px;border-top:1px solid var(--border);
+  display:flex;justify-content:flex-end;gap:8px;
+}
+.te-btn-ghost{
+  padding:8px 16px;border-radius:var(--radius);
+  background:transparent;border:1px solid var(--border);color:var(--text);
+  font-size:13px;font-weight:600;cursor:pointer;transition:background var(--dur);
+}
+.te-btn-ghost:hover{background:rgba(255,255,255,.06)}
+.te-btn-primary{
+  padding:8px 20px;border-radius:var(--radius);border:none;
+  background:var(--accent);color:#1a1a1a;font-size:13px;font-weight:700;cursor:pointer;
+  transition:background var(--dur);
+}
+.te-btn-primary:hover{background:var(--accent2)}
 
 /* ── Decal mini-list section in scene props ── */
 .pp-decal-list {

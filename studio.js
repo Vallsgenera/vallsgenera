@@ -508,45 +508,40 @@ class Studio {
       });
       overlay.appendChild(handle);
     });
+  }
 
-    // Central move handle — arrossega tot el decal per la foto
-    const move = document.createElement('div');
-    move.className = 'dcl-move';
-    move.title = 'Arrossega per moure';
-    move.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/>
-      <polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/>
-      <line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/>
-    </svg>`;
-    let startLL = null, startCorners = null;
-    move.addEventListener('pointerdown', e => {
-      e.stopPropagation(); e.preventDefault();
-      move.setPointerCapture(e.pointerId);
-      this._movingDecal = true;
-      startLL = this._screenToLonLat(e.clientX, e.clientY);
-      const d = (this.currentScene.decals || []).find(d => d.id === this.selectedDecalId);
-      startCorners = d ? JSON.parse(JSON.stringify(d.corners)) : null;
+  /* Mou tot el decal traslladant les 4 cantonades segons el desplaçament del cursor */
+  _moveDecalBy(startLL, curLL, startCorners) {
+    let dLon = curLL.lon - startLL.lon;
+    if (dLon > 180) dLon -= 360; else if (dLon < -180) dLon += 360;
+    const dLat = curLL.lat - startLL.lat;
+    const d = (this.currentScene.decals || []).find(d => d.id === this.selectedDecalId);
+    if (!d) return;
+    ['tl','tr','br','bl'].forEach(k => {
+      d.corners[k] = {
+        lon: startCorners[k].lon + dLon,
+        lat: Math.max(-85, Math.min(85, startCorners[k].lat + dLat))
+      };
     });
-    move.addEventListener('pointermove', e => {
-      if (!this._movingDecal || !startCorners) return;
-      const cur = this._screenToLonLat(e.clientX, e.clientY);
-      let dLon = cur.lon - startLL.lon;
-      if (dLon > 180) dLon -= 360; else if (dLon < -180) dLon += 360;
-      const dLat = cur.lat - startLL.lat;
-      const d = (this.currentScene.decals || []).find(d => d.id === this.selectedDecalId);
-      if (!d) return;
-      ['tl','tr','br','bl'].forEach(k => {
-        d.corners[k] = {
-          lon: startCorners[k].lon + dLon,
-          lat: Math.max(-85, Math.min(85, startCorners[k].lat + dLat))
-        };
-      });
-      this.updateDecalMesh(d);
-    });
-    move.addEventListener('pointerup', () => {
-      if (this._movingDecal) { this._movingDecal = false; this.saveData(true); }
-    });
-    overlay.appendChild(move);
+    this.updateDecalMesh(d);
+  }
+
+  /* Raycast del punt de pantalla contra els decals; retorna l'id del més proper o null */
+  _decalAtScreen(clientX, clientY) {
+    const meshes = Object.values(this._decalMeshes);
+    if (!meshes.length) return null;
+    const container = document.getElementById('studio-viewer');
+    const rect = container.getBoundingClientRect();
+    const ndc = new THREE.Vector2(
+      ((clientX - rect.left) / rect.width) * 2 - 1,
+      -((clientY - rect.top) / rect.height) * 2 + 1
+    );
+    if (!this._raycaster) this._raycaster = new THREE.Raycaster();
+    this._raycaster.setFromCamera(ndc, this.camera);
+    const hits = this._raycaster.intersectObjects(meshes, false);
+    if (!hits.length) return null;
+    const hitMesh = hits[0].object;
+    return Object.keys(this._decalMeshes).find(id => this._decalMeshes[id] === hitMesh) || null;
   }
 
   updateDecalHandlePositions() {
@@ -576,16 +571,6 @@ class Studio {
       handle.style.left = `${p.x}px`;
       handle.style.top  = `${p.y}px`;
     });
-    // Move handle at the decal centre
-    const moveEl = overlay.querySelector('.dcl-move');
-    if (moveEl) {
-      const cc = decal.corners;
-      const clon = (cc.tl.lon + cc.tr.lon + cc.br.lon + cc.bl.lon) / 4;
-      const clat = (cc.tl.lat + cc.tr.lat + cc.br.lat + cc.bl.lat) / 4;
-      const p = project(clon, clat);
-      if (!p) { moveEl.style.display = 'none'; }
-      else { moveEl.style.display = 'flex'; moveEl.style.left = `${p.x}px`; moveEl.style.top = `${p.y}px`; }
-    }
   }
 
   _screenToLonLat(clientX, clientY) {
@@ -753,7 +738,7 @@ class Studio {
     this.renderDecalMiniList();
     this.selectDecal(id);
     this.saveData(true);
-    this.showToast('Text afegit — arrossega el cercle central per moure\'l o les cantonades per redimensionar');
+    this.showToast('Text afegit — arrossega el text per moure\'l o les cantonades per redimensionar');
   }
 
   _createTextDecalTex(decal) {
@@ -772,7 +757,11 @@ class Studio {
     ctx.fillStyle = decal.color || '#ffffff';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.shadowColor = 'rgba(0,0,0,.65)'; ctx.shadowBlur = 10;
-    ctx.fillText(decal.content || '', W/2, H/2);
+    // Suport multi-línia (respecta els salts de línia)
+    const lines = String(decal.content || '').split('\n');
+    const lineH = fs * 1.2;
+    const startY = H/2 - (lines.length - 1) * lineH / 2;
+    lines.forEach((ln, i) => ctx.fillText(ln, W/2, startY + i * lineH));
     return new THREE.CanvasTexture(cv);
   }
 
@@ -1534,19 +1523,42 @@ class Studio {
     canvas.addEventListener('pointerdown', e => {
       if (this.addMode) return;
       if (e.target !== canvas) return; // hotspot has captured pointer
+      // Si el cursor és sobre un decal (text/imatge), l'arrosseguem per moure'l
+      const hitId = this._decalAtScreen(e.clientX, e.clientY);
+      if (hitId) {
+        if (this.selectedDecalId !== hitId) this.selectDecal(hitId);
+        const d = (this.currentScene.decals || []).find(d => d.id === hitId);
+        this._decalDrag = {
+          startLL: this._screenToLonLat(e.clientX, e.clientY),
+          startCorners: d ? JSON.parse(JSON.stringify(d.corners)) : null,
+          moved: false
+        };
+        try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+        return;
+      }
       this.pointerDown = true;
       this.startX = e.clientX; this.startY = e.clientY;
       this.startLon = this.lon; this.startLat = this.lat;
       this.velLon = 0; this.velLat = 0;
     });
     canvas.addEventListener('pointermove', e => {
+      if (this._decalDrag) {
+        this._decalDrag.moved = true;
+        if (this._decalDrag.startCorners) {
+          this._moveDecalBy(this._decalDrag.startLL, this._screenToLonLat(e.clientX, e.clientY), this._decalDrag.startCorners);
+        }
+        return;
+      }
       if (!this.pointerDown) return;
       const dx = e.clientX - this.startX, dy = e.clientY - this.startY;
       const nl = this.startLon - dx * .22, na = this.startLat + dy * .22;
       this.velLon = (nl - this.lon) * .4; this.velLat = (na - this.lat) * .4;
       this.lon = nl; this.lat = na;
     });
-    canvas.addEventListener('pointerup',    () => { this.pointerDown = false; });
+    canvas.addEventListener('pointerup', () => {
+      if (this._decalDrag) { if (this._decalDrag.moved) this.saveData(true); this._decalDrag = null; }
+      this.pointerDown = false;
+    });
     canvas.addEventListener('pointerleave', () => { this.pointerDown = false; });
 
     // Click to place hotspot
@@ -1868,6 +1880,57 @@ class Studio {
       document.getElementById(id)?.addEventListener('change', updateTextDecal);
     });
 
+    // Text editor modal (editor flotant còmode)
+    const teModal = document.getElementById('text-editor-modal');
+    const teLive = () => {
+      const d = (this.currentScene.decals || []).find(dd => dd.id === this.selectedDecalId);
+      if (!d || d.decalType !== 'text') return;
+      d.content   = document.getElementById('te-text').value;
+      d.fontSize  = parseInt(document.getElementById('te-fontsize').value) || 80;
+      d.color     = document.getElementById('te-color').value;
+      d.bgColor   = document.getElementById('te-bg-color').value;
+      d.bgOpacity = parseInt(document.getElementById('te-bg-opacity').value) || 0;
+      d.bold      = document.getElementById('te-bold').checked;
+      d.italic    = document.getElementById('te-italic').checked;
+      this.updateDecalMesh(d, true);
+    };
+    const openTextEditor = () => {
+      const d = (this.currentScene.decals || []).find(dd => dd.id === this.selectedDecalId);
+      if (!d || d.decalType !== 'text') return;
+      document.getElementById('te-text').value        = d.content || '';
+      document.getElementById('te-fontsize').value    = d.fontSize || 80;
+      document.getElementById('te-fs-val').textContent = (d.fontSize || 80) + 'px';
+      document.getElementById('te-color').value       = d.color || '#ffffff';
+      document.getElementById('te-bg-color').value    = d.bgColor || '#000000';
+      document.getElementById('te-bg-opacity').value  = d.bgOpacity ?? 0;
+      document.getElementById('te-bg-val').textContent = (d.bgOpacity ?? 0) + '%';
+      document.getElementById('te-bold').checked      = !!d.bold;
+      document.getElementById('te-italic').checked    = !!d.italic;
+      teModal.classList.remove('hidden');
+      setTimeout(() => document.getElementById('te-text').focus(), 50);
+    };
+    const closeTextEditor = () => teModal.classList.add('hidden');
+    document.getElementById('btn-edit-text')?.addEventListener('click', openTextEditor);
+    document.getElementById('te-close').addEventListener('click', closeTextEditor);
+    document.getElementById('te-cancel').addEventListener('click', closeTextEditor);
+    document.getElementById('te-overlay').addEventListener('click', closeTextEditor);
+    document.getElementById('te-fontsize').addEventListener('input', e =>
+      document.getElementById('te-fs-val').textContent = e.target.value + 'px');
+    document.getElementById('te-bg-opacity').addEventListener('input', e =>
+      document.getElementById('te-bg-val').textContent = e.target.value + '%');
+    ['te-text','te-fontsize','te-color','te-bg-color','te-bg-opacity'].forEach(id =>
+      document.getElementById(id).addEventListener('input', teLive));
+    ['te-bold','te-italic'].forEach(id =>
+      document.getElementById(id).addEventListener('change', teLive));
+    document.getElementById('te-apply').addEventListener('click', () => {
+      teLive();
+      this.renderDecalMiniList();
+      this.saveData(true);
+      if (this.selectedDecalId) this.selectDecal(this.selectedDecalId); // refresca el panell dret
+      closeTextEditor();
+      this.showToast('Text actualitzat');
+    });
+
     // Hotspot props: save / delete / back
     document.getElementById('btn-save-hs').addEventListener('click', () => this.saveSelectedHotspot());
     document.getElementById('btn-delete-hs').addEventListener('click', () => this.deleteSelectedHotspot());
@@ -1883,7 +1946,7 @@ class Studio {
     document.getElementById('em-close2').addEventListener('click', () =>
       document.getElementById('export-modal').classList.add('hidden'));
     document.getElementById('em-download').addEventListener('click', () => this.exportJSON());
-    document.querySelector('.em-overlay').addEventListener('click', () =>
+    document.querySelector('#export-modal .em-overlay').addEventListener('click', () =>
       document.getElementById('export-modal').classList.add('hidden'));
 
     // Resize
