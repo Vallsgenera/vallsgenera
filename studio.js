@@ -1656,8 +1656,17 @@ class Studio {
           this.showToast('El núvol no està disponible per pujar vídeos');
           return;
         }
-        const ext = (file.name.match(/\.(\w+)$/) || [,'mp4'])[1];
         const nameEl = document.getElementById('hs-vid-name');
+        // Límit del pla gratuït de Supabase: 50 MB per fitxer
+        const MAX_MB = 50;
+        const sizeMB = file.size / 1048576;
+        if (sizeMB > MAX_MB) {
+          if (nameEl) nameEl.textContent = 'Massa gran';
+          vidInput.value = '';
+          this.showToast(`El vídeo fa ${sizeMB.toFixed(0)} MB. Màxim ${MAX_MB} MB al pla gratuït — comprimeix-lo o fes servir la pestanya YouTube/Vimeo.`);
+          return;
+        }
+        const ext = (file.name.match(/\.(\w+)$/) || [,'mp4'])[1];
         if (nameEl) nameEl.textContent = 'Pujant vídeo…';
         sbUpload(`videos/${hs.id}.${ext}`, file).then(publicUrl => {
           hs.videoUrl = publicUrl;
