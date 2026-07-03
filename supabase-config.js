@@ -65,3 +65,25 @@ async function sbPublishScenes(scenes) {
 
 /* És una URL http(s) (ja al núvol o externa) i no un data URI / ruta local? */
 function sbIsRemoteUrl(u) { return typeof u === 'string' && /^https?:\/\//.test(u); }
+
+/* ── Autenticació (només per editar/publicar des del Studio) ── */
+async function sbSignIn(email, password) {
+  const c = sbClient();
+  if (!c) throw new Error('Núvol no disponible');
+  const { data, error } = await c.auth.signInWithPassword({ email, password });
+  if (error) throw error;
+  return data;
+}
+
+async function sbSignOut() {
+  const c = sbClient();
+  if (!c) return;
+  try { await c.auth.signOut(); } catch (e) {}
+}
+
+async function sbGetSession() {
+  const c = sbClient();
+  if (!c) return null;
+  try { const { data } = await c.auth.getSession(); return data.session || null; }
+  catch (e) { return null; }
+}

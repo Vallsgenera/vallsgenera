@@ -1491,6 +1491,11 @@ class Studio {
       this.saveData();
     });
     document.getElementById('btn-publish').addEventListener('click', () => this.publishToCloud());
+    const logoutBtn = document.getElementById('btn-logout');
+    if (logoutBtn) logoutBtn.addEventListener('click', async () => {
+      if (typeof sbSignOut === 'function') await sbSignOut();
+      location.reload();
+    });
     document.getElementById('btn-export').addEventListener('click', () => this.showExportModal());
     document.getElementById('btn-new-scene').addEventListener('click', () => this.addScene());
 
@@ -1948,10 +1953,44 @@ class Studio {
 }
 
 /* ── Boot ── */
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
   if (typeof THREE === 'undefined') {
     alert('Error: no s\'ha pogut carregar Three.js. Comprova la connexió.');
     return;
   }
-  window.studio = new Studio();
+
+  const gate = document.getElementById('login-gate');
+  const bootStudio = () => {
+    if (gate) gate.classList.add('hidden');
+    if (!window.studio) window.studio = new Studio();
+  };
+
+  // Sense núvol configurat → mode local (sense login)
+  if (!(typeof sbIsConfigured === 'function' && sbIsConfigured())) {
+    bootStudio();
+    return;
+  }
+
+  // Amb núvol: cal iniciar sessió per editar/publicar
+  const session = await sbGetSession();
+  if (session) { bootStudio(); return; }
+
+  // Mostra el formulari de login
+  const form  = document.getElementById('login-card');
+  const errEl = document.getElementById('login-error');
+  const btn   = document.getElementById('login-btn');
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errEl.textContent = '';
+    btn.disabled = true; btn.textContent = 'Entrant…';
+    const email    = document.getElementById('login-email').value.trim();
+    const password = document.getElementById('login-password').value;
+    try {
+      await sbSignIn(email, password);
+      bootStudio();
+    } catch (err) {
+      errEl.textContent = 'Correu o contrasenya incorrectes';
+      btn.disabled = false; btn.textContent = 'Entrar';
+    }
+  });
 });
