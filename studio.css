@@ -744,6 +744,9 @@ input,textarea,select{font-family:inherit;font-size:13px}
 .logo-drop:hover { border-color: var(--accent); background: rgba(185,206,0,.07); }
 #logo-preview { max-width: 100%; max-height: 48px; object-fit: contain; display: none; }
 #logo-placeholder { font-size: 10.5px; color: var(--text-muted); }
+#cover-preview { max-width: 100%; max-height: 70px; object-fit: cover; border-radius: 4px; display: none; }
+#cover-placeholder { font-size: 10.5px; color: var(--text-muted); }
+.cover-hint { font-size: 9.5px; color: var(--text-muted); margin: 5px 0 0; line-height: 1.4; }
 #btn-remove-logo {
   display: none; width: 100%; margin-top: 6px;
   padding: 5px 0; background: rgba(192,57,43,.12);
