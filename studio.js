@@ -1486,6 +1486,16 @@ class Studio {
     // Toolbar
     document.getElementById('btn-add-hs').addEventListener('click', () => this.setAddMode(!this.addMode));
     document.getElementById('btn-cancel-add').addEventListener('click', () => this.setAddMode(false));
+
+    // Floating overlay toolbar
+    document.getElementById('fab-add-text').addEventListener('click', () => this.addTextDecal());
+    document.getElementById('fab-add-image').addEventListener('click', () => document.getElementById('decal-img-input').click());
+
+    // Settings modal (portada / logo / nadir)
+    const settingsModal = document.getElementById('settings-modal');
+    document.getElementById('btn-settings').addEventListener('click', () => settingsModal.classList.remove('hidden'));
+    document.getElementById('settings-close').addEventListener('click', () => settingsModal.classList.add('hidden'));
+    document.getElementById('settings-overlay').addEventListener('click', () => settingsModal.classList.add('hidden'));
     document.getElementById('btn-save').addEventListener('click', () => {
       this.saveSceneProps();
       this.saveData();
