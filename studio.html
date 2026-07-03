@@ -375,6 +375,15 @@
 
         <!-- Text-specific fields -->
         <div id="decal-text-area" class="hidden">
+          <div class="pp-field" style="border-bottom:none;padding-bottom:6px">
+            <button type="button" id="btn-edit-text" class="go-target-btn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                <path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              </svg>
+              Editar text
+            </button>
+          </div>
           <div class="pp-field">
             <label>Text</label>
             <input type="text" id="decal-content" placeholder="Text a mostrar a la panoràmica">
@@ -489,6 +498,52 @@
 
   <!-- Toast -->
   <div id="studio-toast"></div>
+
+  <!-- Text editor modal (floating) -->
+  <div id="text-editor-modal" class="hidden">
+    <div class="em-overlay" id="te-overlay"></div>
+    <div class="em-panel te-panel">
+      <div class="em-header">
+        <h3>Editar text</h3>
+        <button id="te-close">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+      <div class="em-body te-body">
+        <textarea id="te-text" placeholder="Escriu el text aquí…&#10;(pots fer servir diverses línies)"></textarea>
+        <div class="te-controls">
+          <div class="te-ctrl">
+            <label>Mida <span id="te-fs-val">80px</span></label>
+            <input type="range" id="te-fontsize" min="20" max="300" value="80">
+          </div>
+          <div class="te-ctrl-row">
+            <div class="te-ctrl">
+              <label>Color</label>
+              <input type="color" id="te-color" value="#ffffff">
+            </div>
+            <div class="te-ctrl">
+              <label>Fons</label>
+              <input type="color" id="te-bg-color" value="#000000">
+            </div>
+            <div class="te-ctrl te-ctrl-grow">
+              <label>Opacitat fons <span id="te-bg-val">0%</span></label>
+              <input type="range" id="te-bg-opacity" min="0" max="100" value="0">
+            </div>
+          </div>
+          <div class="te-toggles">
+            <label><input type="checkbox" id="te-bold"> <b>Negreta</b></label>
+            <label><input type="checkbox" id="te-italic"> <i>Cursiva</i></label>
+          </div>
+        </div>
+      </div>
+      <div class="te-footer">
+        <button id="te-cancel" class="te-btn-ghost">Cancel·lar</button>
+        <button id="te-apply" class="te-btn-primary">Aplicar</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Export modal -->
   <div id="export-modal" class="hidden">
