@@ -720,6 +720,25 @@ input,textarea,select{font-family:inherit;font-size:13px}
 }
 .dcl-handle:active { cursor: grabbing; transform: translate(-50%,-50%) scale(1.25); }
 
+/* Rotation handle */
+.dcl-rotate {
+  position: absolute;
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: #3b82f6;
+  border: 2px solid #fff;
+  color: #fff;
+  transform: translate(-50%, -50%);
+  pointer-events: all;
+  cursor: grab;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,.5);
+  transition: transform .1s;
+  touch-action: none;
+}
+.dcl-rotate svg { width: 14px; height: 14px; }
+.dcl-rotate:active { cursor: grabbing; transform: translate(-50%,-50%) scale(1.12); }
+
 /* Ghost que segueix el cursor en arrossegar el botó Text */
 .drag-ghost {
   position: fixed;

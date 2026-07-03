@@ -508,6 +508,53 @@ class Studio {
       });
       overlay.appendChild(handle);
     });
+
+    // Rotation handle (a sobre del text)
+    const rot = document.createElement('div');
+    rot.className = 'dcl-rotate';
+    rot.title = 'Arrossega per girar';
+    rot.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+    </svg>`;
+    let rot0 = null;
+    rot.addEventListener('pointerdown', e => {
+      e.stopPropagation(); e.preventDefault();
+      rot.setPointerCapture(e.pointerId);
+      const d = (this.currentScene.decals || []).find(d => d.id === this.selectedDecalId);
+      if (!d) return;
+      const c = d.corners;
+      const clon = (c.tl.lon + c.tr.lon + c.br.lon + c.bl.lon) / 4;
+      const clat = (c.tl.lat + c.tr.lat + c.br.lat + c.bl.lat) / 4;
+      const cosc = Math.max(0.2, Math.cos(THREE.MathUtils.degToRad(clat)));
+      const pl = this._screenToLonLat(e.clientX, e.clientY);
+      const a0 = Math.atan2(pl.lat - clat, (pl.lon - clon) * cosc);
+      rot0 = { clon, clat, cosc, a0, startCorners: JSON.parse(JSON.stringify(c)) };
+      this._rotatingDecal = true;
+    });
+    rot.addEventListener('pointermove', e => {
+      if (!this._rotatingDecal || !rot0) return;
+      const pl = this._screenToLonLat(e.clientX, e.clientY);
+      const a = Math.atan2(pl.lat - rot0.clat, (pl.lon - rot0.clon) * rot0.cosc);
+      const delta = a - rot0.a0;
+      const cos = Math.cos(delta), sin = Math.sin(delta);
+      const d = (this.currentScene.decals || []).find(d => d.id === this.selectedDecalId);
+      if (!d) return;
+      ['tl','tr','br','bl'].forEach(k => {
+        const sx = (rot0.startCorners[k].lon - rot0.clon) * rot0.cosc;
+        const sy = (rot0.startCorners[k].lat - rot0.clat);
+        const xr = sx * cos - sy * sin;
+        const yr = sx * sin + sy * cos;
+        d.corners[k] = {
+          lon: rot0.clon + xr / rot0.cosc,
+          lat: Math.max(-85, Math.min(85, rot0.clat + yr))
+        };
+      });
+      this.updateDecalMesh(d);
+    });
+    rot.addEventListener('pointerup', () => {
+      if (this._rotatingDecal) { this._rotatingDecal = false; this.saveData(true); }
+    });
+    overlay.appendChild(rot);
   }
 
   /* Mou tot el decal traslladant les 4 cantonades segons el desplaçament del cursor */
@@ -571,6 +618,17 @@ class Studio {
       handle.style.left = `${p.x}px`;
       handle.style.top  = `${p.y}px`;
     });
+    // Rotation handle above the decal's top edge
+    const rotEl = overlay.querySelector('.dcl-rotate');
+    if (rotEl) {
+      const c = decal.corners;
+      const clon = (c.tl.lon + c.tr.lon + c.br.lon + c.bl.lon) / 4;
+      const clat = (c.tl.lat + c.tr.lat + c.br.lat + c.bl.lat) / 4;
+      const tmLon = (c.tl.lon + c.tr.lon) / 2, tmLat = (c.tl.lat + c.tr.lat) / 2;
+      const p = project(tmLon + (tmLon - clon) * 0.5, tmLat + (tmLat - clat) * 0.5);
+      if (!p) { rotEl.style.display = 'none'; }
+      else { rotEl.style.display = 'flex'; rotEl.style.left = `${p.x}px`; rotEl.style.top = `${p.y}px`; }
+    }
   }
 
   _screenToLonLat(clientX, clientY) {
@@ -756,7 +814,11 @@ class Studio {
     ctx.font = `${decal.italic?'italic ':''}${decal.bold?'bold ':''}${fs}px system-ui,sans-serif`;
     ctx.fillStyle = decal.color || '#ffffff';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.shadowColor = 'rgba(0,0,0,.65)'; ctx.shadowBlur = 10;
+    if (decal.shadow !== false) {
+      ctx.shadowColor = 'rgba(0,0,0,.7)';
+      ctx.shadowBlur = decal.shadowBlur != null ? decal.shadowBlur : 10;
+      ctx.shadowOffsetY = 2;
+    }
     // Suport multi-línia (respecta els salts de línia)
     const lines = String(decal.content || '').split('\n');
     const lineH = fs * 1.2;
@@ -1892,6 +1954,14 @@ class Studio {
       d.bgOpacity = parseInt(document.getElementById('te-bg-opacity').value) || 0;
       d.bold      = document.getElementById('te-bold').checked;
       d.italic    = document.getElementById('te-italic').checked;
+      // Translúcid (opacitat de tot el text)
+      d.opacity   = (parseInt(document.getElementById('te-opacity').value) || 100) / 100;
+      const mesh = this._decalMeshes[d.id];
+      if (mesh) { mesh.material.opacity = d.opacity; mesh.material.needsUpdate = true; }
+      // Ombra
+      const sh = parseInt(document.getElementById('te-shadow').value);
+      d.shadow = sh > 0;
+      d.shadowBlur = sh;
       this.updateDecalMesh(d, true);
     };
     const openTextEditor = () => {
@@ -1906,6 +1976,12 @@ class Studio {
       document.getElementById('te-bg-val').textContent = (d.bgOpacity ?? 0) + '%';
       document.getElementById('te-bold').checked      = !!d.bold;
       document.getElementById('te-italic').checked    = !!d.italic;
+      const op = Math.round((d.opacity ?? 1) * 100);
+      document.getElementById('te-opacity').value      = op;
+      document.getElementById('te-op-val').textContent = op + '%';
+      const sh = d.shadow === false ? 0 : (d.shadowBlur != null ? d.shadowBlur : 10);
+      document.getElementById('te-shadow').value       = sh;
+      document.getElementById('te-shadow-val').textContent = sh === 0 ? 'Cap' : (sh <= 15 ? 'Suau' : 'Forta');
       teModal.classList.remove('hidden');
       setTimeout(() => document.getElementById('te-text').focus(), 50);
     };
@@ -1918,7 +1994,13 @@ class Studio {
       document.getElementById('te-fs-val').textContent = e.target.value + 'px');
     document.getElementById('te-bg-opacity').addEventListener('input', e =>
       document.getElementById('te-bg-val').textContent = e.target.value + '%');
-    ['te-text','te-fontsize','te-color','te-bg-color','te-bg-opacity'].forEach(id =>
+    document.getElementById('te-opacity').addEventListener('input', e =>
+      document.getElementById('te-op-val').textContent = e.target.value + '%');
+    document.getElementById('te-shadow').addEventListener('input', e => {
+      const v = parseInt(e.target.value);
+      document.getElementById('te-shadow-val').textContent = v === 0 ? 'Cap' : (v <= 15 ? 'Suau' : 'Forta');
+    });
+    ['te-text','te-fontsize','te-color','te-bg-color','te-bg-opacity','te-opacity','te-shadow'].forEach(id =>
       document.getElementById(id).addEventListener('input', teLive));
     ['te-bold','te-italic'].forEach(id =>
       document.getElementById(id).addEventListener('change', teLive));
