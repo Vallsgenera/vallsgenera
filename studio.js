@@ -1503,10 +1503,11 @@ class Studio {
   showExportModal() {
     document.getElementById('export-modal').classList.remove('hidden');
 
-    // Restaura URL guardada
+    // URL pública: la desada o, per defecte, la pròpia del tour (sempre la mateixa)
     const urlInput = document.getElementById('em-public-url');
     const openBtn  = document.getElementById('em-open-url');
-    const savedUrl = localStorage.getItem('vg-public-url') || '';
+    const savedUrl = (localStorage.getItem('vg-public-url') || '').trim() || this._defaultPublicUrl();
+    localStorage.setItem('vg-public-url', savedUrl);
     urlInput.value = savedUrl;
     openBtn.href = savedUrl || '#';
     openBtn.style.opacity = savedUrl ? '1' : '0.35';
@@ -1547,12 +1548,21 @@ class Studio {
     }).catch(() => { photoNote.textContent = ''; });
   }
 
-  /* URL base del tour: la pública desada, o la deduïda d'aquesta pàgina del Studio */
+  /* URL pública per defecte del tour.
+     Si el Studio s'obre des del web (GitHub Pages) es dedueix de l'adreça;
+     en local, es fa servir la URL publicada coneguda. */
+  _defaultPublicUrl() {
+    if (/^https?:\/\//.test(location.href)) {
+      return location.href.replace(/[?#].*$/, '').replace(/[^/]*$/, '');
+    }
+    return 'https://francescferremagrinya-coder.github.io/vallsgenera_tour/';
+  }
+
+  /* URL base del tour: la pública desada, o la per defecte */
   _tourBaseUrl() {
     const saved = (localStorage.getItem('vg-public-url') || '').trim();
     if (/^https?:\/\//.test(saved)) return saved.replace(/[?#].*$/, '');
-    // Deducció: el tour (index.html) és al mateix directori que studio.html
-    return location.href.replace(/[?#].*$/, '').replace(/[^/]*$/, '');
+    return this._defaultPublicUrl();
   }
 
   /* Genera i mostra el codi iframe per incrustar el tour */
