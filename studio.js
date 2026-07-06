@@ -1518,7 +1518,21 @@ class Studio {
       openBtn.href = v || '#';
       openBtn.style.opacity = v ? '1' : '0.35';
       openBtn.style.pointerEvents = v ? '' : 'none';
+      this._updateEmbedCode();
     }, { once: false });
+
+    // Codi per incrustar (iframe)
+    this._updateEmbedCode();
+    if (!this._embedWired) {
+      this._embedWired = true;
+      document.getElementById('em-copy-embed').addEventListener('click', () => {
+        const ta = document.getElementById('em-embed-code');
+        const done = () => this.showToast('Codi copiat ✓ Enganxa\'l a la teva web');
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(ta.value).then(done).catch(() => { ta.select(); document.execCommand('copy'); done(); });
+        } else { ta.select(); document.execCommand('copy'); done(); }
+      });
+    }
 
     // Estat de les fotos (s'incrustaran dins de scenes.json)
     const photoNote = document.getElementById('em-photo-note');
@@ -1531,6 +1545,28 @@ class Studio {
       if (missing.length) msg += `Escenes sense foto: ${missing.join(', ')}.`;
       photoNote.textContent = msg;
     }).catch(() => { photoNote.textContent = ''; });
+  }
+
+  /* URL base del tour: la pública desada, o la deduïda d'aquesta pàgina del Studio */
+  _tourBaseUrl() {
+    const saved = (localStorage.getItem('vg-public-url') || '').trim();
+    if (/^https?:\/\//.test(saved)) return saved.replace(/[?#].*$/, '');
+    // Deducció: el tour (index.html) és al mateix directori que studio.html
+    return location.href.replace(/[?#].*$/, '').replace(/[^/]*$/, '');
+  }
+
+  /* Genera i mostra el codi iframe per incrustar el tour */
+  _updateEmbedCode() {
+    const ta = document.getElementById('em-embed-code');
+    if (!ta) return;
+    const url = this._tourBaseUrl();
+    ta.value =
+`<div style="position:relative;width:100%;padding-bottom:56.25%">
+  <iframe src="${url}"
+    style="position:absolute;inset:0;width:100%;height:100%;border:0"
+    allow="fullscreen; accelerometer; gyroscope; xr-spatial-tracking; autoplay"
+    allowfullscreen loading="lazy"></iframe>
+</div>`;
   }
 
   /* Recomprimeix una foto 360° a una mida raonable i la torna com a data URI base64.

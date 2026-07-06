@@ -552,6 +552,24 @@ input,textarea,select{font-family:inherit;font-size:13px}
 .em-url-hint{font-size:11px;color:var(--text-muted);margin-top:5px;line-height:1.5;
   opacity:.7}
 .em-divider{height:1px;background:var(--border);margin:14px 0}
+
+/* Codi per incrustar */
+#em-embed-code{
+  width:100%;resize:vertical;margin-top:4px;
+  padding:10px 12px;border-radius:var(--radius);
+  background:var(--bg);border:1px solid var(--border);color:var(--text);
+  font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5px;line-height:1.45;
+  outline:none;transition:border-color var(--dur);
+}
+#em-embed-code:focus{border-color:var(--accent)}
+.em-copy-btn{
+  display:inline-flex;align-items:center;gap:6px;margin-top:8px;
+  padding:8px 16px;border-radius:var(--radius);
+  background:rgba(185,206,0,.12);border:1.5px solid rgba(185,206,0,.35);
+  color:var(--accent);font-size:12.5px;font-weight:600;cursor:pointer;
+  transition:background var(--dur),border-color var(--dur);
+}
+.em-copy-btn:hover{background:rgba(185,206,0,.22);border-color:var(--accent)}
 .em-footer svg{flex-shrink:0}
 
 .em-photo-note{
