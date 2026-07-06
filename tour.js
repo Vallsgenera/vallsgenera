@@ -573,8 +573,10 @@ class VirtualTour {
     return new THREE.CanvasTexture(cv);
   }
 
-  /* ── Load scene ── */
-  loadScene(index, animate = true) {
+  /* ── Load scene ──
+     opts.transition : tipus de transició (override del global, p.ex. des d'un hotspot nav)
+     opts.targetView : {lon,lat} d'arribada (override de la vista per defecte de l'escena) */
+  loadScene(index, animate = true, opts = {}) {
     if (this.isTransitioning) return;
     if (index === this.currentIndex && animate) return;
     this.isTransitioning = true;
@@ -592,9 +594,10 @@ class VirtualTour {
       titleEl.classList.add('scene-title-enter');
       document.querySelectorAll('.scene-dot').forEach((d,i)=>d.classList.toggle('active',i===index));
 
-      // UI immediata (hotspots, càmera) – independent de la foto
-      this.lon = s.defaultLon != null ? s.defaultLon : 0;
-      this.lat = s.defaultLat != null ? s.defaultLat : 0;
+      // Vista d'arribada: 1r la del hotspot nav, 2n la per defecte de l'escena
+      const tv = opts.targetView;
+      this.lon = (tv && tv.lon != null) ? tv.lon : (s.defaultLon != null ? s.defaultLon : 0);
+      this.lat = (tv && tv.lat != null) ? tv.lat : (s.defaultLat != null ? s.defaultLat : 0);
       this.velLon = 0; this.velLat = 0;
       this.buildHotspots(s);
       this.buildDecals(s);
@@ -606,7 +609,8 @@ class VirtualTour {
     };
 
     if (animate) {
-      this._doTransition(overlay, () => doLoad(), () => { this.isTransitioning = false; });
+      const type = opts.transition || this.transStyle || 'fade';
+      this._doTransition(overlay, () => doLoad(), () => { this.isTransitioning = false; }, type);
     } else {
       doLoad();
       this.isTransitioning = false;
@@ -683,13 +687,13 @@ class VirtualTour {
             stroke="white" stroke-width="5.5"
             stroke-linecap="round" stroke-linejoin="round"/>
         </svg>`;
+        const navLbl = hs.title ? `<div class="nav-scene-label">${hs.title}</div>` : '';
         el.innerHTML = `
           <div class="sv-arrow-wrap">
             <div class="sv-chevron sv-c1">${chev}</div>
             <div class="sv-chevron sv-c2">${chev}</div>
             <div class="sv-chevron sv-c3">${chev}</div>
-          </div>
-          <div class="nav-scene-label">${hs.title}</div>`;
+          </div>${navLbl}`;
         el.addEventListener('click', e => { e.stopPropagation(); this.handleHotspot(hs); });
         overlay.appendChild(el);
         return;
@@ -699,13 +703,16 @@ class VirtualTour {
       const inner = document.createElement('div');
       inner.className = 'hotspot-inner';
       inner.innerHTML = (hs.icon && HS_ICON_LIBRARY[hs.icon]) || HS_ICONS[hs.type] || HS_ICONS.info;
-
-      const label = document.createElement('div');
-      label.className = 'hotspot-label';
-      label.textContent = hs.title;
-
       el.appendChild(inner);
-      el.appendChild(label);
+
+      // Etiqueta: només si hi ha títol. Amb showLabel es mostra sempre; si no, al passar el cursor.
+      if (hs.title) {
+        const label = document.createElement('div');
+        label.className = 'hotspot-label';
+        label.textContent = hs.title;
+        el.appendChild(label);
+        if (hs.showLabel) el.classList.add('show-label');
+      }
       overlay.appendChild(el);
 
       el.addEventListener('click', e => { e.stopPropagation(); this.handleHotspot(hs); });
@@ -734,17 +741,22 @@ class VirtualTour {
         break;
       case 'nav': {
         const idx = this.scenes.findIndex(s => s.id === hs.targetScene);
-        if (idx >= 0) this.loadScene(idx);
+        if (idx >= 0) this.loadScene(idx, true, { transition: hs.transition, targetView: hs.targetView });
         break;
       }
     }
   }
 
-  /* ── Scene transition engine ── */
-  _doTransition(overlay, onMidpoint, onDone) {
-    const t = this.transStyle || 'fade';
+  /* ── Scene transition engine ──
+     Tipus: cross · zoom · black · white · wipe-left · wipe-down · 3d · fade(default) */
+  _doTransition(overlay, onMidpoint, onDone, type) {
+    const t = type || this.transStyle || 'fade';
+    const canvas = document.getElementById('panorama-canvas');
     const base = 'position:absolute;inset:0;pointer-events:none;z-index:15;';
-    const clear = () => { overlay.style.cssText = base + 'opacity:0;'; };
+    const clear = () => {
+      overlay.style.cssText = base + 'opacity:0;';
+      if (canvas) { canvas.style.transition = ''; canvas.style.transform = ''; canvas.style.filter = ''; }
+    };
 
     if (t === 'portal') {
       overlay.style.cssText = base + 'background:#000;clip-path:circle(0% at 50% 50%);';
@@ -757,18 +769,34 @@ class VirtualTour {
         overlay.style.clipPath = 'circle(0% at 50% 50%)';
         setTimeout(() => { clear(); onDone(); }, 450);
       }, 400);
-    } else if (t === 'wipe') {
-      overlay.style.cssText = base + 'background:#0a1a14;transform:translateX(-100%);';
+
+    } else if (t === 'wipe' || t === 'wipe-left') {
+      // Right-to-left
+      overlay.style.cssText = base + 'background:#0a1a14;transform:translateX(100%);';
       void overlay.offsetWidth;
       overlay.style.transition = 'transform .35s cubic-bezier(.4,0,.2,1)';
       overlay.style.transform = 'translateX(0%)';
       setTimeout(() => {
         onMidpoint();
         overlay.style.transition = 'transform .35s cubic-bezier(.4,0,.2,1)';
-        overlay.style.transform = 'translateX(100%)';
+        overlay.style.transform = 'translateX(-100%)';
         setTimeout(() => { clear(); onDone(); }, 370);
       }, 370);
-    } else if (t === 'flash') {
+
+    } else if (t === 'wipe-down') {
+      // Top-to-bottom
+      overlay.style.cssText = base + 'background:#0a1a14;transform:translateY(-100%);';
+      void overlay.offsetWidth;
+      overlay.style.transition = 'transform .35s cubic-bezier(.4,0,.2,1)';
+      overlay.style.transform = 'translateY(0%)';
+      setTimeout(() => {
+        onMidpoint();
+        overlay.style.transition = 'transform .35s cubic-bezier(.4,0,.2,1)';
+        overlay.style.transform = 'translateY(100%)';
+        setTimeout(() => { clear(); onDone(); }, 370);
+      }, 370);
+
+    } else if (t === 'white' || t === 'flash') {
       overlay.style.cssText = base + 'background:white;opacity:0;';
       void overlay.offsetWidth;
       overlay.style.transition = 'opacity .08s linear';
@@ -779,9 +807,45 @@ class VirtualTour {
         overlay.style.opacity = '0';
         setTimeout(() => { clear(); onDone(); }, 350);
       }, 100);
-    } else {
-      // fade (default)
+
+    } else if (t === 'zoom' || t === '3d') {
+      // Zoom blend / 3D: escala + desenfoc del panorama + fosa
+      const dark = t === '3d' ? '#000' : '#0a1a14';
+      if (canvas) {
+        canvas.style.transition = 'transform .38s ease-in, filter .38s ease-in';
+        canvas.style.transform = t === '3d' ? 'scale(1.35) perspective(900px) rotateY(6deg)' : 'scale(1.3)';
+        canvas.style.filter = 'blur(3px)';
+      }
+      overlay.style.cssText = base + `background:${dark};opacity:0;`;
+      void overlay.offsetWidth;
+      overlay.style.transition = 'opacity .34s ease-in';
+      overlay.style.opacity = '1';
+      setTimeout(() => {
+        onMidpoint();
+        if (canvas) { canvas.style.transition = 'none'; canvas.style.transform = t === '3d' ? 'scale(1.35) perspective(900px) rotateY(-6deg)' : 'scale(1.3)'; canvas.style.filter = 'blur(3px)'; void canvas.offsetWidth; }
+        overlay.style.transition = 'opacity .4s ease-out';
+        overlay.style.opacity = '0';
+        if (canvas) { canvas.style.transition = 'transform .5s ease-out, filter .5s ease-out'; canvas.style.transform = 'scale(1)'; canvas.style.filter = 'blur(0)'; }
+        setTimeout(() => { clear(); onDone(); }, 500);
+      }, 400);
+
+    } else if (t === 'cross') {
+      // Simple cross — fosa ràpida i lleugera
       overlay.style.cssText = base + 'background:#0a1a14;opacity:0;';
+      void overlay.offsetWidth;
+      overlay.style.transition = 'opacity .18s ease';
+      overlay.style.opacity = '.85';
+      setTimeout(() => {
+        onMidpoint();
+        overlay.style.transition = 'opacity .22s ease';
+        overlay.style.opacity = '0';
+        setTimeout(() => { clear(); onDone(); }, 240);
+      }, 190);
+
+    } else {
+      // fade / black (default). 'black' = fosa a negre pur.
+      const bg = t === 'black' ? '#000' : '#0a1a14';
+      overlay.style.cssText = base + `background:${bg};opacity:0;`;
       void overlay.offsetWidth;
       overlay.style.transition = 'opacity .25s ease';
       overlay.style.opacity = '1';
@@ -1379,12 +1443,9 @@ window.addEventListener('DOMContentLoaded', () => {
         }).catch(() => {});
       }
       splash.addEventListener('click', () => {
-        const s0 = window.tour.scenes[0] || {};
-        const endLon = s0.defaultLon != null ? s0.defaultLon : 0;
-        const endLat = s0.defaultLat != null ? s0.defaultLat : 0;
-        window.tour.startTinyPlanetTransition(2600, endLon, endLat);
+        // Entrada directa al tour, sense animació de transició
         splash.classList.add('out');
-        setTimeout(() => splash.classList.add('hidden'), 550);
+        setTimeout(() => splash.classList.add('hidden'), 400);
       }, { once: true });
     }
   }

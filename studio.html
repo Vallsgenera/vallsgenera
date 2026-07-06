@@ -474,7 +474,14 @@
 
         <div class="pp-field">
           <label>Títol</label>
-          <input type="text" id="hs-title" placeholder="Títol visible al passar el cursor">
+          <input type="text" id="hs-title" placeholder="Títol (deixa'l buit per no mostrar-lo)">
+        </div>
+
+        <div class="pp-field" id="hs-showlabel-field">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400">
+            <input type="checkbox" id="hs-showLabel">
+            Mostrar el nom sempre <span class="label-hint">(si no, al passar el cursor)</span>
+          </label>
         </div>
 
         <div id="hs-dynamic-fields"></div>
