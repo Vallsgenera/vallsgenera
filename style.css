@@ -340,6 +340,7 @@ button{font-family:inherit;cursor:pointer}
   border:5px solid transparent;border-top-color:rgba(10,26,20,.88);
 }
 .hotspot:hover .hotspot-label{opacity:1}
+.hotspot.show-label .hotspot-label{opacity:1}
 
 /* ── Info panel ── */
 #info-panel{

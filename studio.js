@@ -122,9 +122,34 @@ function dynamicFields(type, hs = {}, scenes = [], currentId = '') {
         .filter(sc => sc.id !== currentId)
         .map(sc => `<option value="${sc.id}" ${hs.targetScene === sc.id ? 'selected' : ''}>${sc.name}</option>`)
         .join('');
+      const TRANS = [
+        ['', 'Per defecte (global)'],
+        ['3d', 'Transició 3D'],
+        ['cross', 'Creuada simple'],
+        ['zoom', 'Zoom blend'],
+        ['black', 'Fosa a negre'],
+        ['white', 'Flaix blanc'],
+        ['wipe-left', 'Dreta → esquerra'],
+        ['wipe-down', 'Dalt → baix'],
+      ];
+      const transOpts = TRANS.map(([v, l]) =>
+        `<option value="${v}" ${(hs.transition || '') === v ? 'selected' : ''}>${l}</option>`).join('');
+      const hasTV = hs.targetView && hs.targetView.lon != null;
       return `<div class="pp-field">
         <label>Escena de destí</label>
         <select id="hs-targetScene">${opts}</select>
+      </div>
+      <div class="pp-field">
+        <label>Transició en navegar</label>
+        <select id="hs-transition">${transOpts}</select>
+      </div>
+      <div class="pp-field">
+        <label>Vista d'arribada <span class="label-hint">(arrossega la miniatura)</span></label>
+        <div class="nav-target-preview" id="nav-target-preview">
+          <canvas id="nav-target-canvas"></canvas>
+          <div class="nav-target-badge" id="nav-target-badge" ${hasTV ? '' : 'style="display:none"'}>Vista personalitzada ✓</div>
+        </div>
+        <button type="button" id="btn-clear-target-view" class="te-btn-ghost" style="width:100%;margin-top:6px">Usar la vista per defecte de l'escena</button>
       </div>
       <div class="pp-field" style="border-bottom:none;padding-top:6px">
         <button type="button" id="btn-go-target-scene" class="go-target-btn">
@@ -662,6 +687,7 @@ class Studio {
   }
 
   selectDecal(id) {
+    this._destroyNavTargetViewer();
     this.selectedDecalId = id;
     this.selectedHsId = null;
     document.getElementById('scene-props-section').classList.add('hidden');
@@ -916,13 +942,13 @@ class Studio {
 
       if (hs.type === 'nav') {
         const chev = `<svg viewBox="0 0 62 24" fill="none"><polyline points="3,20 31,4 59,20" stroke="white" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+        const lbl = hs.title ? `<div class="s-hotspot-lbl">${hs.title}</div>` : '';
         el.innerHTML = `
           <div class="sv-arrow-wrap">
             <div class="sv-chevron sv-c1">${chev}</div>
             <div class="sv-chevron sv-c2">${chev}</div>
             <div class="sv-chevron sv-c3">${chev}</div>
-          </div>
-          <div class="s-hotspot-lbl">${hs.title}</div>`;
+          </div>${lbl}`;
       } else if (hs.type === 'text') {
         const st = hs.style || {};
         const fs = Math.min(st.fontSize || 22, 18);
@@ -937,10 +963,8 @@ class Studio {
       } else {
         const iconSvg = (hs.icon && typeof HS_ICON_LIBRARY !== 'undefined' && HS_ICON_LIBRARY[hs.icon])
           || STUDIO_HS_ICONS[hs.type] || STUDIO_HS_ICONS.info;
-        el.innerHTML = `
-          <div class="s-hotspot-inner">${iconSvg}</div>
-          <div class="s-hotspot-lbl">${hs.title}</div>
-        `;
+        const lbl = hs.title ? `<div class="s-hotspot-lbl">${hs.title}</div>` : '';
+        el.innerHTML = `<div class="s-hotspot-inner">${iconSvg}</div>${lbl}`;
       }
 
       // Drag-to-move + click-to-select
@@ -1028,6 +1052,7 @@ class Studio {
 
   /* ── Props panel ── */
   renderPropsPanel() {
+    this._destroyNavTargetViewer();
     const s = this.currentScene;
 
     // Scene fields
@@ -1105,14 +1130,22 @@ class Studio {
       p.classList.toggle('active', p.dataset.type === hs.type);
     });
 
-    // Title
+    // Title + show-label toggle
     document.getElementById('hs-title').value = hs.title || '';
+    const slField = document.getElementById('hs-showlabel-field');
+    const slBox = document.getElementById('hs-showLabel');
+    if (slBox) slBox.checked = !!hs.showLabel;
+    // El "mostrar nom" no té sentit per a text (sempre visible)
+    if (slField) slField.style.display = (hs.type === 'text') ? 'none' : '';
+
+    // Atura qualsevol mini-visor previ
+    this._destroyNavTargetViewer();
 
     // Dynamic fields
     document.getElementById('hs-dynamic-fields').innerHTML =
       dynamicFields(hs.type, hs, this.scenes, this.currentScene.id);
 
-    // Nav: button to jump directly to the target scene for editing
+    // Nav: transició, vista d'arribada (mini-visor) i botó d'editar el destí
     if (hs.type === 'nav') {
       const goBtn = document.getElementById('btn-go-target-scene');
       if (goBtn) {
@@ -1123,6 +1156,35 @@ class Studio {
           if (idx >= 0) this.switchScene(idx);
         });
       }
+      const transSel = document.getElementById('hs-transition');
+      if (transSel) transSel.addEventListener('change', () => {
+        const cur = this.currentScene.hotspots.find(h => h.id === this.selectedHsId);
+        if (cur) { cur.transition = transSel.value; this.saveData(true); }
+      });
+      const tgtSel = document.getElementById('hs-targetScene');
+      if (tgtSel) tgtSel.addEventListener('change', () => {
+        const cur = this.currentScene.hotspots.find(h => h.id === this.selectedHsId);
+        if (cur) {
+          cur.targetScene = tgtSel.value;
+          cur.targetView = null;   // en canviar de destí, es reinicia la vista d'arribada
+          const badge = document.getElementById('nav-target-badge');
+          if (badge) badge.style.display = 'none';
+          this.saveData(true);
+          this._initNavTargetViewer(cur);
+        }
+      });
+      const clearBtn = document.getElementById('btn-clear-target-view');
+      if (clearBtn) clearBtn.addEventListener('click', () => {
+        const cur = this.currentScene.hotspots.find(h => h.id === this.selectedHsId);
+        if (cur) {
+          cur.targetView = null;
+          const badge = document.getElementById('nav-target-badge');
+          if (badge) badge.style.display = 'none';
+          this.saveData(true);
+          this._initNavTargetViewer(cur);
+        }
+      });
+      this._initNavTargetViewer(hs);
     }
 
     // Position
@@ -1133,8 +1195,90 @@ class Studio {
     this.renderHsMiniList();
   }
 
+  /* Mini-visor 360 de l'escena de destí per triar la vista d'arribada */
+  _destroyNavTargetViewer() {
+    if (this._navViewerRAF) { cancelAnimationFrame(this._navViewerRAF); this._navViewerRAF = null; }
+    if (this._navViewer) {
+      try {
+        if (this._navViewer.mat.map) this._navViewer.mat.map.dispose();
+        this._navViewer.geo.dispose();
+        this._navViewer.mat.dispose();
+        this._navViewer.renderer.dispose();
+        this._navViewer.renderer.forceContextLoss();
+      } catch (e) {}
+      this._navViewer = null;
+    }
+  }
+
+  _initNavTargetViewer(hs) {
+    this._destroyNavTargetViewer();
+    const canvas = document.getElementById('nav-target-canvas');
+    if (!canvas) return;
+    const targetId = document.getElementById('hs-targetScene')?.value || hs.targetScene;
+    const scene = this.scenes.find(s => s.id === targetId);
+    if (!scene) return;
+
+    const w = canvas.clientWidth || 226, h = canvas.clientHeight || 130;
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(w, h, false);
+    const cam = new THREE.PerspectiveCamera(72, w / h, 1, 1100);
+    cam.position.set(0, 0, 0);
+    const sc = new THREE.Scene();
+    const geo = new THREE.SphereGeometry(500, 48, 32); geo.scale(-1, 1, 1);
+    const mat = new THREE.MeshBasicMaterial({ color: 0x2a2a2e });
+    sc.add(new THREE.Mesh(geo, mat));
+
+    const tv = hs.targetView;
+    let lon = (tv && tv.lon != null) ? tv.lon : (scene.defaultLon != null ? scene.defaultLon : 0);
+    let lat = (tv && tv.lat != null) ? tv.lat : (scene.defaultLat != null ? scene.defaultLat : 0);
+
+    // Textura de l'escena de destí (mateixa resolució que el tour)
+    const applyTex = (tex) => {
+      tex.minFilter = THREE.LinearFilter; tex.magFilter = THREE.LinearFilter;
+      mat.map = tex; mat.color.set(0xffffff); mat.needsUpdate = true;
+    };
+    const loadUrl = (url, revoke) => new THREE.TextureLoader().load(url,
+      t => { applyTex(t); if (revoke) URL.revokeObjectURL(url); }, undefined, () => {});
+    PhotoStore.get(scene.id).then(blob => {
+      if (blob) loadUrl(URL.createObjectURL(blob), true);
+      else if (scene.image) loadUrl(scene.image, false);
+    }).catch(() => { if (scene.image) loadUrl(scene.image, false); });
+
+    // Arrossegar per mirar al voltant → desa la vista al hotspot
+    let down = false, sx = 0, sy = 0, slon = 0, slat = 0;
+    canvas.addEventListener('pointerdown', e => {
+      down = true; sx = e.clientX; sy = e.clientY; slon = lon; slat = lat;
+      try { canvas.setPointerCapture(e.pointerId); } catch (er) {}
+    });
+    canvas.addEventListener('pointermove', e => {
+      if (!down) return;
+      lon = slon - (e.clientX - sx) * 0.25;
+      lat = Math.max(-85, Math.min(85, slat + (e.clientY - sy) * 0.25));
+      const cur = this.currentScene.hotspots.find(hh => hh.id === this.selectedHsId);
+      if (cur) cur.targetView = { lon: Math.round(lon * 10) / 10, lat: Math.round(lat * 10) / 10 };
+      const badge = document.getElementById('nav-target-badge');
+      if (badge) badge.style.display = '';
+    });
+    const endDrag = () => { if (down) { down = false; this.saveData(true); } };
+    canvas.addEventListener('pointerup', endDrag);
+    canvas.addEventListener('pointerleave', endDrag);
+
+    const render = () => {
+      const phi = THREE.MathUtils.degToRad(90 - lat);
+      const th  = THREE.MathUtils.degToRad(lon);
+      cam.lookAt(Math.sin(phi) * Math.cos(th), Math.cos(phi), Math.sin(phi) * Math.sin(th));
+      renderer.render(sc, cam);
+      this._navViewerRAF = requestAnimationFrame(render);
+    };
+    render();
+    this._navViewer = { renderer, geo, mat };
+  }
+
   getHsFormData(type) {
     const data = { type, title: readField('hs-title') };
+    // Mostrar el nom sempre (no aplica al text, que ja és sempre visible)
+    if (type !== 'text') data.showLabel = !!document.getElementById('hs-showLabel')?.checked;
     if (type === 'info') {
       data.content = readField('hs-content');
     }
@@ -1162,7 +1306,7 @@ class Studio {
       data.caption = readField('hs-caption');
     }
     if (type === 'link')  { data.linkUrl = readField('hs-linkUrl'); data.linkDesc = readField('hs-linkDesc'); }
-    if (type === 'nav')   { data.targetScene = readField('hs-targetScene'); }
+    if (type === 'nav')   { data.targetScene = readField('hs-targetScene'); data.transition = readField('hs-transition'); }
     if (type === 'text') {
       const fontSize  = parseInt(document.getElementById('hs-fontSize')?.value) || 22;
       const color     = document.getElementById('hs-text-color')?.value || '#ffffff';
@@ -1793,6 +1937,10 @@ class Studio {
 
     // Desa el títol del hotspot automàticament
     document.getElementById('hs-title').addEventListener('input', () => {
+      if (this.selectedHsId) this.persistHotspotEdits();
+    });
+    // Desa "Mostrar el nom sempre"
+    document.getElementById('hs-showLabel').addEventListener('change', () => {
       if (this.selectedHsId) this.persistHotspotEdits();
     });
 
