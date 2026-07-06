@@ -699,10 +699,10 @@ class Studio {
     this.renderDecalMiniList();
   }
 
-  async addDecal(file) {
+  async addDecal(file, center) {
     if (!file) return;
-    // Place at current camera look direction
-    const center = { lon: this.lon, lat: this.lat };
+    // Place at the drop point (or current camera look direction)
+    center = center || { lon: this.lon, lat: this.lat };
     const W = 10, H = 7;
     const id = 'dcl-' + Date.now().toString(36);
     const decal = {
@@ -726,10 +726,14 @@ class Studio {
     this.showToast('Imatge afegida — arrossega les cantonades grogues per ajustar');
   }
 
-  /* Arrossega el botó "Text" i deixa'l anar sobre la foto per col·locar-lo.
-     Un clic simple (sense arrossegar) el posa al centre de la vista. */
-  _setupTextDragPlace() {
-    const btn = document.getElementById('fab-add-text');
+  /* Arrossega un botó del panell flotant i deixa'l anar sobre la foto per
+     col·locar-lo. Un clic simple (sense arrossegar) executa onClick.
+       btnId  – id del botó
+       label  – text del "ghost" que segueix el cursor
+       onPlace(lonLat) – col·locació al punt on es deixa anar
+       onClick()       – acció del clic simple */
+  _setupDragPlace(btnId, label, onPlace, onClick) {
+    const btn = document.getElementById(btnId);
     if (!btn) return;
     const viewer = document.getElementById('studio-viewer');
     let dragging = false, moved = false, ghost = null;
@@ -747,11 +751,8 @@ class Studio {
       if (ghost) { ghost.remove(); ghost = null; }
       const r = viewer.getBoundingClientRect();
       const inside = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
-      if (moved && inside) {
-        this.addTextDecal(this._screenToLonLat(e.clientX, e.clientY));
-      } else if (!moved) {
-        this.addTextDecal();               // clic simple → centre de la vista
-      }
+      if (moved && inside) onPlace(this._screenToLonLat(e.clientX, e.clientY));
+      else if (!moved) onClick();
       // arrossegat però deixat fora del visor → cancel·lat
     };
     btn.addEventListener('pointerdown', (e) => {
@@ -759,7 +760,7 @@ class Studio {
       dragging = true; moved = false;
       ghost = document.createElement('div');
       ghost.className = 'drag-ghost';
-      ghost.textContent = 'Text';
+      ghost.textContent = label;
       ghost.style.left = e.clientX + 'px';
       ghost.style.top  = e.clientY + 'px';
       document.body.appendChild(ghost);
@@ -1236,32 +1237,22 @@ class Studio {
 
   onCanvasClick(e) {
     if (!this.addMode) return;
+    this.setAddMode(false);
+    this.addHotspotAt(this._screenToLonLat(e.clientX, e.clientY));
+  }
 
-    const container = document.getElementById('studio-viewer');
-    const rect = container.getBoundingClientRect();
-    const ndcX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-    const ndcY = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-
-    // Unproject to get direction
-    const vec = new THREE.Vector3(ndcX, ndcY, 0.5);
-    vec.unproject(this.camera);
-    vec.sub(this.camera.position).normalize();
-
-    const lat = THREE.MathUtils.radToDeg(Math.asin(Math.max(-1, Math.min(1, vec.y))));
-    let lon = THREE.MathUtils.radToDeg(Math.atan2(vec.z, vec.x));
-    lon = Math.round(lon * 10) / 10;
-    const latR = Math.round(lat * 10) / 10;
-
-    // Create new hotspot
+  /* Crea un hotspot al punt indicat (o al centre de la vista) i el selecciona */
+  addHotspotAt(center) {
+    center = center || { lon: this.lon, lat: this.lat };
     const newHs = {
       id: uid(),
-      lon, lat: latR,
+      lon: Math.round(center.lon * 10) / 10,
+      lat: Math.round(center.lat * 10) / 10,
       type: 'info',
       title: 'Nou hotspot',
       content: ''
     };
     this.currentScene.hotspots.push(newHs);
-    this.setAddMode(false);
     this.renderHotspots();
     this.selectHotspot(newHs.id);
     this.saveData();
@@ -1653,13 +1644,19 @@ class Studio {
       if (e.key === 's' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); this.saveData(); }
     });
 
-    // Toolbar
-    document.getElementById('btn-add-hs').addEventListener('click', () => this.setAddMode(!this.addMode));
+    // Toolbar (btn-add-hs ara s'arrossega des de la barra flotant, més avall)
     document.getElementById('btn-cancel-add').addEventListener('click', () => this.setAddMode(false));
 
-    // Floating overlay toolbar
-    this._setupTextDragPlace();
-    document.getElementById('fab-add-image').addEventListener('click', () => document.getElementById('decal-img-input').click());
+    // Floating overlay toolbar — arrossega per col·locar, o clic per posar al centre
+    this._setupDragPlace('fab-add-text', 'Text',
+      (ll) => this.addTextDecal(ll),
+      () => this.addTextDecal());
+    this._setupDragPlace('btn-add-hs', 'Hotspot',
+      (ll) => this.addHotspotAt(ll),
+      () => this.addHotspotAt());
+    this._setupDragPlace('fab-add-image', 'Imatge',
+      (ll) => { this._pendingDecalCenter = ll; document.getElementById('decal-img-input').click(); },
+      () => { this._pendingDecalCenter = null; document.getElementById('decal-img-input').click(); });
 
     // Settings modal (portada / logo / nadir)
     const settingsModal = document.getElementById('settings-modal');
@@ -1871,7 +1868,7 @@ class Studio {
     // Decal: add new
     document.getElementById('decal-img-input').addEventListener('change', e => {
       const file = e.target.files[0];
-      if (file) { this.addDecal(file); e.target.value = ''; }
+      if (file) { this.addDecal(file, this._pendingDecalCenter); this._pendingDecalCenter = null; e.target.value = ''; }
     });
 
     // Decal: replace image
