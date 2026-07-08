@@ -239,12 +239,15 @@ class Studio {
 
   constructor() {
     this.scenes = [];
+    this.folders = []; // { id, name, collapsed }
+    this.mediaLibrary = []; // { id, name } — fotos pujades a l'àlbum, encara no assignades
     this.currentIdx = 0;
     this.selectedHsId = null;
     this.selectedDecalId = null;
     this.draggingCorner  = null; // 'tl'|'tr'|'br'|'bl' while dragging
     this.addMode = false;
     this._photoUrls  = {}; // sceneId → objectURL (preview)
+    this._thumbChecked = new Set(); // sceneId ja consultat a IndexedDB
     this._decalMeshes = {}; // decalId → THREE.Mesh
 
     // Three.js
@@ -267,6 +270,8 @@ class Studio {
   /* ── Init ── */
   async init() {
     await this.loadData();
+    await this.loadFolders();
+    this.loadMediaLibrary();
     this.setupThree();
     this.renderSceneList();
     this.switchScene(0, false);
@@ -367,6 +372,208 @@ class Studio {
       localStorage.setItem('vg-tour-scenes', stripped);
     } catch(e) {}
     if (!silent) this.showToast('Guardat correctament');
+  }
+
+  /* ── Folders (agrupació d'escenes al panell) ── */
+  async loadFolders() {
+    const saved = localStorage.getItem('vg-studio-folders');
+    if (saved) {
+      try { this.folders = JSON.parse(saved); return; } catch(e) {}
+    }
+    if (typeof sbLoadConfig === 'function') {
+      try {
+        const cfg = await sbLoadConfig();
+        if (cfg && Array.isArray(cfg.folders)) { this.folders = cfg.folders; return; }
+      } catch(e) {}
+    }
+    this.folders = [];
+  }
+
+  saveFoldersLocal() {
+    try { localStorage.setItem('vg-studio-folders', JSON.stringify(this.folders)); } catch(e) {}
+  }
+
+  addFolder() {
+    const name = (prompt('Nom de la carpeta:') || '').trim();
+    if (!name) return;
+    this.folders.push({ id: 'folder-' + Date.now().toString(36), name, collapsed: false });
+    this.saveFoldersLocal();
+    this.renderSceneList();
+  }
+
+  renameFolder(folderId) {
+    const folder = this.folders.find(f => f.id === folderId);
+    if (!folder) return;
+    const name = (prompt('Nou nom de la carpeta:', folder.name) || '').trim();
+    if (!name) return;
+    folder.name = name;
+    this.saveFoldersLocal();
+    this.renderSceneList();
+  }
+
+  deleteFolder(folderId) {
+    const folder = this.folders.find(f => f.id === folderId);
+    if (!folder) return;
+    if (!confirm(`Eliminar la carpeta "${folder.name}"? Les escenes no s'esborraran.`)) return;
+    this.scenes.forEach(s => { if (s.folder === folderId) delete s.folder; });
+    this.folders = this.folders.filter(f => f.id !== folderId);
+    this.saveFoldersLocal();
+    this.saveData(true);
+    this.renderSceneList();
+  }
+
+  toggleFolderCollapsed(folderId) {
+    const folder = this.folders.find(f => f.id === folderId);
+    if (!folder) return;
+    folder.collapsed = !folder.collapsed;
+    this.saveFoldersLocal();
+    this.renderSceneList();
+  }
+
+  /* ── Àlbum de fotos (per crear escenes noves a partir d'una foto ja pujada) ──
+     Les fotos de l'àlbum es desen a IndexedDB (com les fotos d'escena); en
+     triar-ne una es copia el blob cap a la nova escena, que ja segueix el
+     circuit normal de pujada al núvol quan es publica. */
+  loadMediaLibrary() {
+    const saved = localStorage.getItem('vg-studio-media-library');
+    if (saved) {
+      try { this.mediaLibrary = JSON.parse(saved); return; } catch(e) {}
+    }
+    this.mediaLibrary = [];
+  }
+
+  saveMediaLibraryLocal() {
+    try { localStorage.setItem('vg-studio-media-library', JSON.stringify(this.mediaLibrary)); } catch(e) {}
+  }
+
+  _getLibraryThumbUrl(entry) {
+    return this._photoUrls['lib:' + entry.id] || null;
+  }
+
+  _ensureLibraryThumb(entry) {
+    const key = 'lib:' + entry.id;
+    if (this._photoUrls[key] || this._thumbChecked.has(key)) return;
+    this._thumbChecked.add(key);
+    PhotoStore.get(entry.id).then(blob => {
+      if (blob) {
+        this._photoUrls[key] = URL.createObjectURL(blob);
+        this._renderAlbumGrid();
+      }
+    }).catch(() => {});
+  }
+
+  /* Clau font per reutilitzar una foto: URL remota tal qual, o clau d'IndexedDB */
+  _scenePhotoSourceKey(s) {
+    if (typeof s.image === 'string' && /^https?:\/\//.test(s.image)) return s.image;
+    return s.id;
+  }
+
+  async uploadToLibrary(file) {
+    if (!file) return;
+    const safeName = file.name.replace(/[^\w.\-]+/g, '-').toLowerCase();
+    const id = 'lib-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const name = safeName.replace(/\.\w+$/, '').replace(/[-_]+/g, ' ');
+    try {
+      await PhotoStore.put(id, file);
+    } catch(e) { this.showToast('Error desant la foto: ' + (e.message || e)); return; }
+    this._photoUrls['lib:' + id] = URL.createObjectURL(file);
+    this.mediaLibrary.unshift({ id, name });
+    this.saveMediaLibraryLocal();
+    this._renderAlbumGrid();
+  }
+
+  showPhotoAlbum() {
+    document.getElementById('photo-album-modal').classList.remove('hidden');
+    this._renderAlbumGrid();
+  }
+
+  hidePhotoAlbum() {
+    document.getElementById('photo-album-modal').classList.add('hidden');
+  }
+
+  _renderAlbumGrid() {
+    const grid = document.getElementById('photo-album-grid');
+    const hint = document.getElementById('album-empty-hint');
+    if (!grid) return;
+    grid.innerHTML = '';
+
+    // Tile de pujada
+    const uploadTile = document.createElement('label');
+    uploadTile.className = 'album-tile album-upload-tile';
+    uploadTile.innerHTML = `
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+      <span>Puja una foto nova</span>
+      <input type="file" accept=".jpg,.jpeg,.png,.webp" style="display:none">
+    `;
+    uploadTile.querySelector('input').addEventListener('change', e => {
+      const file = e.target.files[0];
+      e.target.value = '';
+      if (file) this.uploadToLibrary(file);
+    });
+    grid.appendChild(uploadTile);
+
+    let hasItems = false;
+
+    // Fotos pujades a l'àlbum, encara no assignades
+    this.mediaLibrary.forEach(entry => {
+      const url = this._getLibraryThumbUrl(entry);
+      if (!url) this._ensureLibraryThumb(entry);
+      const tile = document.createElement('div');
+      tile.className = 'album-tile';
+      tile.style.backgroundImage = url ? `url('${url.replace(/'/g, '%27')}')` : '';
+      tile.innerHTML = `<div class="album-tile-label">${entry.name}</div>`;
+      tile.addEventListener('click', () => this.createSceneFromPhotoSource(entry.id, entry.name));
+      grid.appendChild(tile);
+      hasItems = true;
+    });
+
+    // Fotos d'escenes ja existents (per reutilitzar-les en una escena nova)
+    this.scenes.forEach(s => {
+      const url = this._getThumbUrl(s);
+      if (!url) { this._ensureThumb(s); return; }
+      const tile = document.createElement('div');
+      tile.className = 'album-tile';
+      tile.style.backgroundImage = `url('${url.replace(/'/g, '%27')}')`;
+      tile.innerHTML = `
+        <span class="album-tile-badge">${s.name}</span>
+        <div class="album-tile-label">${s.name}</div>
+      `;
+      tile.addEventListener('click', () => this.createSceneFromPhotoSource(this._scenePhotoSourceKey(s), s.name));
+      grid.appendChild(tile);
+      hasItems = true;
+    });
+
+    if (hint) hint.classList.toggle('hidden', hasItems);
+  }
+
+  /* Crea una escena nova a partir d'una font de foto ja existent
+     (URL remota, o clau d'IndexedDB d'una foto de l'àlbum/d'una altra escena) */
+  async createSceneFromPhotoSource(sourceKey, suggestedName) {
+    const name = (prompt('Nom de la nova escena:', suggestedName || '') || '').trim();
+    if (!name) return;
+    const id = 'escena-' + Date.now().toString(36);
+    const scene = { id, name, color: '#0F6E56', shade: '#0a5040', hotspots: [] };
+
+    if (/^https?:\/\//.test(sourceKey)) {
+      scene.image = sourceKey;
+    } else {
+      try {
+        const blob = await PhotoStore.get(sourceKey);
+        if (blob) {
+          await PhotoStore.put(id, blob);
+          this._photoUrls[id] = URL.createObjectURL(blob);
+        }
+      } catch(e) {}
+    }
+
+    this.scenes.push(scene);
+    this.hidePhotoAlbum();
+    this.saveData();
+    this.renderSceneList();
+    this.switchScene(this.scenes.length - 1);
   }
 
   get currentScene() { return this.scenes[this.currentIdx]; }
@@ -893,39 +1100,275 @@ class Studio {
       `${s.hotspots.length} hotspot${s.hotspots.length !== 1 ? 's' : ''}`;
   }
 
+  /* ── Miniatures de les escenes (foto real, si n'hi ha) ── */
+  _getThumbUrl(s) {
+    if (this._photoUrls[s.id]) return this._photoUrls[s.id];
+    if (typeof s.image === 'string' && /^https?:\/\//.test(s.image)) return s.image;
+    return null;
+  }
+
+  _ensureThumb(s) {
+    if (this._photoUrls[s.id] || this._thumbChecked.has(s.id)) return;
+    this._thumbChecked.add(s.id);
+    PhotoStore.get(s.id).then(blob => {
+      if (blob) {
+        this._photoUrls[s.id] = URL.createObjectURL(blob);
+        this.renderSceneList();
+      }
+    }).catch(() => {});
+  }
+
+  /* Agrupa this.scenes (ordre pla) en blocs d'escena / carpeta per pintar el panell */
+  _buildSceneBlocks() {
+    const blocks = [];
+    const folderBlocks = {};
+    this.scenes.forEach(s => {
+      const folder = s.folder && this.folders.find(f => f.id === s.folder);
+      if (folder) {
+        let blk = folderBlocks[folder.id];
+        if (!blk) {
+          blk = { type: 'folder', folder, scenes: [] };
+          folderBlocks[folder.id] = blk;
+          blocks.push(blk);
+        }
+        blk.scenes.push(s);
+      } else {
+        blocks.push({ type: 'scene', scene: s });
+      }
+    });
+    // Carpetes buides (creades però sense escenes encara) es mostren al final
+    this.folders.forEach(f => {
+      if (!folderBlocks[f.id]) blocks.push({ type: 'folder', folder: f, scenes: [] });
+    });
+    return blocks;
+  }
+
+  /* Torna a l'ordre pla (this.scenes) a partir dels blocs, després de reordenar */
+  _flattenBlocks(blocks) {
+    const out = [];
+    blocks.forEach(b => { if (b.type === 'scene') out.push(b.scene); else out.push(...b.scenes); });
+    return out;
+  }
+
   /* ── Render scene list (left sidebar) ── */
   renderSceneList() {
     const list = document.getElementById('scenes-list');
     list.innerHTML = '';
-    this.scenes.forEach((s, i) => {
-      const item = document.createElement('div');
-      const isHidden = s.visible === false;
-      item.className = 'scene-item' + (i === this.currentIdx ? ' active' : '') + (isHidden ? ' scene-hidden' : '');
+    const blocks = this._buildSceneBlocks();
 
-      const eyeOpen = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
-      const eyeClosed = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
-
-      item.innerHTML = `
-        <div class="scene-thumb-row">
-          <div class="scene-color-dot" style="background:${s.color}">
-            ${s.image || this._photoUrls[s.id] ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.7)" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>' : ''}
-          </div>
-          <button class="scene-eye-btn" title="${isHidden ? 'Mostrar al tour' : 'Ocultar del tour'}">${isHidden ? eyeClosed : eyeOpen}</button>
-        </div>
-        <div class="scene-item-name">${s.name}</div>
-        <div class="scene-item-count">${s.hotspots.length} hotspot${s.hotspots.length !== 1 ? 's' : ''}</div>
-      `;
-
-      const eyeBtn = item.querySelector('.scene-eye-btn');
-      eyeBtn.addEventListener('click', e => {
-        e.stopPropagation();
-        s.visible = (s.visible !== false) ? false : true;
-        this.renderSceneList();
-        this.saveData(true);
-      });
-      item.addEventListener('click', () => this.switchScene(i));
-      list.appendChild(item);
+    blocks.forEach(block => {
+      if (block.type === 'folder') {
+        list.appendChild(this._renderFolderHeader(block));
+        if (!block.folder.collapsed) {
+          block.scenes.forEach(s => list.appendChild(this._renderSceneItem(s, true)));
+        }
+      } else {
+        list.appendChild(this._renderSceneItem(block.scene, false));
+      }
     });
+
+    this._wireSceneDnD(list);
+  }
+
+  _renderSceneItem(s, inFolder) {
+    const i = this.scenes.indexOf(s);
+    const item = document.createElement('div');
+    const isHidden = s.visible === false;
+    item.className = 'scene-item' + (i === this.currentIdx ? ' active' : '') + (isHidden ? ' scene-hidden' : '') + (inFolder ? ' in-folder' : '');
+    item.draggable = true;
+    item.dataset.sceneId = s.id;
+
+    const eyeOpen = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+    const eyeClosed = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
+
+    const thumbUrl = this._getThumbUrl(s);
+    if (!thumbUrl) this._ensureThumb(s);
+    const thumbStyle = thumbUrl
+      ? `background-image:url('${thumbUrl.replace(/'/g, '%27')}');background-color:${s.color}`
+      : `background:${s.color}`;
+
+    item.innerHTML = `
+      <div class="scene-thumb-row">
+        <div class="scene-color-dot" style="${thumbStyle}"></div>
+        <button class="scene-eye-btn" title="${isHidden ? 'Mostrar al tour' : 'Ocultar del tour'}">${isHidden ? eyeClosed : eyeOpen}</button>
+      </div>
+      <div class="scene-item-name">${s.name}</div>
+      <div class="scene-item-count">${s.hotspots.length} hotspot${s.hotspots.length !== 1 ? 's' : ''}</div>
+    `;
+
+    const eyeBtn = item.querySelector('.scene-eye-btn');
+    eyeBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      s.visible = (s.visible !== false) ? false : true;
+      this.renderSceneList();
+      this.saveData(true);
+    });
+    item.addEventListener('click', () => this.switchScene(this.scenes.indexOf(s)));
+    return item;
+  }
+
+  _renderFolderHeader(block) {
+    const folder = block.folder;
+    const header = document.createElement('div');
+    header.className = 'scene-folder-header' + (folder.collapsed ? ' collapsed' : '');
+    header.draggable = true;
+    header.dataset.folderId = folder.id;
+
+    const chevron = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 6 15 12 9 18"/></svg>`;
+    const folderIcon = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>`;
+
+    header.innerHTML = `
+      <button class="folder-chevron-btn" title="Plegar/desplegar">${chevron}</button>
+      <span class="folder-icon">${folderIcon}</span>
+      <span class="folder-name" title="${folder.name}">${folder.name}</span>
+      <span class="folder-count">${block.scenes.length}</span>
+      <button class="folder-del-btn" title="Eliminar carpeta">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    `;
+
+    header.addEventListener('click', () => this.toggleFolderCollapsed(folder.id));
+    header.querySelector('.folder-name').addEventListener('dblclick', e => {
+      e.stopPropagation();
+      this.renameFolder(folder.id);
+    });
+    header.querySelector('.folder-del-btn').addEventListener('click', e => {
+      e.stopPropagation();
+      this.deleteFolder(folder.id);
+    });
+    return header;
+  }
+
+  /* ── Reordenar/agrupar escenes arrossegant-les a la llista ── */
+  _wireSceneDnD(list) {
+    let dragType = null; // 'scene' | 'folder'
+    let dragId = null;
+    let overEl = null;
+    let overMode = null; // 'before' | 'after' | 'inside'
+
+    const clearIndicators = () => {
+      list.querySelectorAll('.drop-before,.drop-after,.drop-inside').forEach(el =>
+        el.classList.remove('drop-before', 'drop-after', 'drop-inside'));
+    };
+
+    list.querySelectorAll('.scene-item,.scene-folder-header').forEach(el => {
+      el.addEventListener('dragstart', e => {
+        dragType = el.classList.contains('scene-folder-header') ? 'folder' : 'scene';
+        dragId = dragType === 'folder' ? el.dataset.folderId : el.dataset.sceneId;
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', dragId);
+        requestAnimationFrame(() => el.classList.add('dragging'));
+      });
+      el.addEventListener('dragend', () => {
+        el.classList.remove('dragging');
+        clearIndicators();
+        dragType = null; dragId = null; overEl = null; overMode = null;
+      });
+      el.addEventListener('dragover', e => {
+        if (!dragType) return;
+        e.preventDefault();
+        const isFolder = el.classList.contains('scene-folder-header');
+        const rect = el.getBoundingClientRect();
+        const offsetY = e.clientY - rect.top;
+        let mode;
+        if (isFolder && dragType === 'scene' && offsetY > rect.height * 0.25 && offsetY < rect.height * 0.75) {
+          mode = 'inside';
+        } else {
+          mode = offsetY < rect.height / 2 ? 'before' : 'after';
+        }
+        clearIndicators();
+        overEl = el; overMode = mode;
+        el.classList.add(mode === 'inside' ? 'drop-inside' : (mode === 'before' ? 'drop-before' : 'drop-after'));
+      });
+      el.addEventListener('drop', e => {
+        e.preventDefault();
+        if (!dragType || !overEl) return;
+        this._handleSceneDrop(dragType, dragId, overEl, overMode);
+        clearIndicators();
+      });
+    });
+
+    // Deixar anar en un espai buit de la llista → mou al final, arrel
+    list.addEventListener('dragover', e => { if (dragType) e.preventDefault(); });
+    list.addEventListener('drop', e => {
+      e.preventDefault();
+      if (!dragType || overEl) return;
+      this._handleSceneDrop(dragType, dragId, null, 'end');
+      clearIndicators();
+    });
+  }
+
+  _handleSceneDrop(dragType, dragId, targetEl, mode) {
+    const blocks = this._buildSceneBlocks();
+    let draggedScene = null, draggedFolderBlock = null;
+
+    if (dragType === 'scene') {
+      for (const b of blocks) {
+        if (b.type === 'scene' && b.scene.id === dragId) { draggedScene = b.scene; blocks.splice(blocks.indexOf(b), 1); break; }
+        if (b.type === 'folder') {
+          const idx = b.scenes.findIndex(s => s.id === dragId);
+          if (idx !== -1) { draggedScene = b.scenes[idx]; b.scenes.splice(idx, 1); break; }
+        }
+      }
+      if (!draggedScene) return;
+    } else {
+      const idx = blocks.findIndex(b => b.type === 'folder' && b.folder.id === dragId);
+      if (idx === -1) return;
+      draggedFolderBlock = blocks.splice(idx, 1)[0];
+    }
+
+    if (dragType === 'scene') {
+      if (targetEl && mode === 'inside') {
+        const folderId = targetEl.dataset.folderId;
+        const dest = blocks.find(b => b.type === 'folder' && b.folder.id === folderId);
+        if (dest) { draggedScene.folder = folderId; dest.scenes.push(draggedScene); }
+        else { delete draggedScene.folder; blocks.push({ type: 'scene', scene: draggedScene }); }
+      } else if (targetEl && targetEl.classList.contains('in-folder')) {
+        // Deixar anar abans/després d'una escena dins d'una carpeta → reordena dins la carpeta
+        const targetId = targetEl.dataset.sceneId;
+        const dest = blocks.find(b => b.type === 'folder' && b.scenes.some(s => s.id === targetId));
+        if (dest) {
+          const idx = dest.scenes.findIndex(s => s.id === targetId);
+          draggedScene.folder = dest.folder.id;
+          dest.scenes.splice(mode === 'before' ? idx : idx + 1, 0, draggedScene);
+        } else {
+          delete draggedScene.folder;
+          blocks.push({ type: 'scene', scene: draggedScene });
+        }
+      } else {
+        delete draggedScene.folder;
+        let insertAt = blocks.length;
+        if (targetEl) {
+          const isFolder = targetEl.classList.contains('scene-folder-header');
+          const key = isFolder ? targetEl.dataset.folderId : targetEl.dataset.sceneId;
+          const idx = blocks.findIndex(b => isFolder
+            ? (b.type === 'folder' && b.folder.id === key)
+            : (b.type === 'scene' && b.scene.id === key));
+          if (idx !== -1) insertAt = mode === 'before' ? idx : idx + 1;
+        }
+        blocks.splice(insertAt, 0, { type: 'scene', scene: draggedScene });
+      }
+    } else {
+      let insertAt = blocks.length;
+      if (targetEl) {
+        const isFolder = targetEl.classList.contains('scene-folder-header');
+        const key = isFolder ? targetEl.dataset.folderId : targetEl.dataset.sceneId;
+        let idx;
+        if (isFolder) idx = blocks.findIndex(b => b.type === 'folder' && b.folder.id === key);
+        else idx = blocks.findIndex(b => (b.type === 'scene' && b.scene.id === key) || (b.type === 'folder' && b.scenes.some(s => s.id === key)));
+        if (idx !== -1) insertAt = mode === 'after' ? idx + 1 : idx;
+      }
+      blocks.splice(insertAt, 0, draggedFolderBlock);
+    }
+
+    const activeScene = this.scenes[this.currentIdx];
+    this.scenes = this._flattenBlocks(blocks);
+    if (activeScene) {
+      const newIdx = this.scenes.indexOf(activeScene);
+      if (newIdx !== -1) this.currentIdx = newIdx;
+    }
+    this.saveData(true);
+    this.renderSceneList();
   }
 
   /* ── Render hotspots on viewer ── */
@@ -1642,8 +2085,18 @@ class Studio {
         }
       }
 
-      // 3) Publica les dades de les escenes
+      // 3) Publica les dades de les escenes (ordre inclòs)
       await sbPublishScenes(this.scenes);
+
+      // 4) Publica l'estructura de carpetes (config compartida)
+      if (typeof sbSaveConfig === 'function' && typeof sbLoadConfig === 'function') {
+        try {
+          const cfg = await sbLoadConfig();
+          cfg.folders = this.folders;
+          await sbSaveConfig(cfg);
+        } catch (e) { console.warn('[publish] folders:', e); }
+      }
+
       this.saveData(true);
       if (btn) { btn.disabled = false; btn.innerHTML = orig; }
       this.showToast('✓ Publicat al núvol — visible per a tothom');
@@ -1864,7 +2317,16 @@ class Studio {
       location.reload();
     });
     document.getElementById('btn-export').addEventListener('click', () => this.showExportModal());
-    document.getElementById('btn-new-scene').addEventListener('click', () => this.addScene());
+    document.getElementById('btn-new-scene').addEventListener('click', () => this.showPhotoAlbum());
+    document.getElementById('btn-new-folder').addEventListener('click', () => this.addFolder());
+
+    // Àlbum de fotos (escena nova)
+    document.getElementById('album-close').addEventListener('click', () => this.hidePhotoAlbum());
+    document.getElementById('album-overlay').addEventListener('click', () => this.hidePhotoAlbum());
+    document.getElementById('btn-blank-scene').addEventListener('click', () => {
+      this.hidePhotoAlbum();
+      this.addScene();
+    });
 
     // Scene props live update
     document.getElementById('prop-name').addEventListener('input', e => {

@@ -89,11 +89,19 @@
     <aside class="s-scenes-panel">
       <div class="sp-header">
         <span>Escenes</span>
-        <button id="btn-new-scene" title="Nova escena">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-          </svg>
-        </button>
+        <div class="sp-header-btns">
+          <button id="btn-new-folder" title="Nova carpeta">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">
+              <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/>
+              <line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/>
+            </svg>
+          </button>
+          <button id="btn-new-scene" title="Nova escena">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+          </button>
+        </div>
       </div>
       <div id="scenes-list"></div>
     </aside>
@@ -556,6 +564,28 @@
       <div class="te-footer">
         <button id="te-cancel" class="te-btn-ghost">Cancel·lar</button>
         <button id="te-apply" class="te-btn-primary">Aplicar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Photo album modal (crear escena nova des d'una foto ja pujada o pujant-ne una) -->
+  <div id="photo-album-modal" class="hidden">
+    <div class="em-overlay" id="album-overlay"></div>
+    <div class="em-panel album-panel">
+      <div class="em-header">
+        <h3>Tria una foto per la nova escena</h3>
+        <button id="album-close">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+      <div class="em-body album-body">
+        <div id="photo-album-grid" class="album-grid"></div>
+        <p class="album-empty-hint" id="album-empty-hint">Encara no tens cap foto pujada. Puja'n una per començar.</p>
+      </div>
+      <div class="em-footer">
+        <button id="btn-blank-scene" class="secondary-btn">Escena en blanc (sense foto)</button>
       </div>
     </div>
   </div>
