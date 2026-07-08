@@ -240,6 +240,7 @@ class Studio {
   constructor() {
     this.scenes = [];
     this.folders = []; // { id, name, collapsed }
+    this.mediaLibrary = []; // { id, name } — fotos pujades a l'àlbum, encara no assignades
     this.currentIdx = 0;
     this.selectedHsId = null;
     this.selectedDecalId = null;
@@ -270,6 +271,7 @@ class Studio {
   async init() {
     await this.loadData();
     await this.loadFolders();
+    this.loadMediaLibrary();
     this.setupThree();
     this.renderSceneList();
     this.switchScene(0, false);
@@ -426,6 +428,152 @@ class Studio {
     folder.collapsed = !folder.collapsed;
     this.saveFoldersLocal();
     this.renderSceneList();
+  }
+
+  /* ── Àlbum de fotos (per crear escenes noves a partir d'una foto ja pujada) ──
+     Les fotos de l'àlbum es desen a IndexedDB (com les fotos d'escena); en
+     triar-ne una es copia el blob cap a la nova escena, que ja segueix el
+     circuit normal de pujada al núvol quan es publica. */
+  loadMediaLibrary() {
+    const saved = localStorage.getItem('vg-studio-media-library');
+    if (saved) {
+      try { this.mediaLibrary = JSON.parse(saved); return; } catch(e) {}
+    }
+    this.mediaLibrary = [];
+  }
+
+  saveMediaLibraryLocal() {
+    try { localStorage.setItem('vg-studio-media-library', JSON.stringify(this.mediaLibrary)); } catch(e) {}
+  }
+
+  _getLibraryThumbUrl(entry) {
+    return this._photoUrls['lib:' + entry.id] || null;
+  }
+
+  _ensureLibraryThumb(entry) {
+    const key = 'lib:' + entry.id;
+    if (this._photoUrls[key] || this._thumbChecked.has(key)) return;
+    this._thumbChecked.add(key);
+    PhotoStore.get(entry.id).then(blob => {
+      if (blob) {
+        this._photoUrls[key] = URL.createObjectURL(blob);
+        this._renderAlbumGrid();
+      }
+    }).catch(() => {});
+  }
+
+  /* Clau font per reutilitzar una foto: URL remota tal qual, o clau d'IndexedDB */
+  _scenePhotoSourceKey(s) {
+    if (typeof s.image === 'string' && /^https?:\/\//.test(s.image)) return s.image;
+    return s.id;
+  }
+
+  async uploadToLibrary(file) {
+    if (!file) return;
+    const safeName = file.name.replace(/[^\w.\-]+/g, '-').toLowerCase();
+    const id = 'lib-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const name = safeName.replace(/\.\w+$/, '').replace(/[-_]+/g, ' ');
+    try {
+      await PhotoStore.put(id, file);
+    } catch(e) { this.showToast('Error desant la foto: ' + (e.message || e)); return; }
+    this._photoUrls['lib:' + id] = URL.createObjectURL(file);
+    this.mediaLibrary.unshift({ id, name });
+    this.saveMediaLibraryLocal();
+    this._renderAlbumGrid();
+  }
+
+  showPhotoAlbum() {
+    document.getElementById('photo-album-modal').classList.remove('hidden');
+    this._renderAlbumGrid();
+  }
+
+  hidePhotoAlbum() {
+    document.getElementById('photo-album-modal').classList.add('hidden');
+  }
+
+  _renderAlbumGrid() {
+    const grid = document.getElementById('photo-album-grid');
+    const hint = document.getElementById('album-empty-hint');
+    if (!grid) return;
+    grid.innerHTML = '';
+
+    // Tile de pujada
+    const uploadTile = document.createElement('label');
+    uploadTile.className = 'album-tile album-upload-tile';
+    uploadTile.innerHTML = `
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+      <span>Puja una foto nova</span>
+      <input type="file" accept=".jpg,.jpeg,.png,.webp" style="display:none">
+    `;
+    uploadTile.querySelector('input').addEventListener('change', e => {
+      const file = e.target.files[0];
+      e.target.value = '';
+      if (file) this.uploadToLibrary(file);
+    });
+    grid.appendChild(uploadTile);
+
+    let hasItems = false;
+
+    // Fotos pujades a l'àlbum, encara no assignades
+    this.mediaLibrary.forEach(entry => {
+      const url = this._getLibraryThumbUrl(entry);
+      if (!url) this._ensureLibraryThumb(entry);
+      const tile = document.createElement('div');
+      tile.className = 'album-tile';
+      tile.style.backgroundImage = url ? `url('${url.replace(/'/g, '%27')}')` : '';
+      tile.innerHTML = `<div class="album-tile-label">${entry.name}</div>`;
+      tile.addEventListener('click', () => this.createSceneFromPhotoSource(entry.id, entry.name));
+      grid.appendChild(tile);
+      hasItems = true;
+    });
+
+    // Fotos d'escenes ja existents (per reutilitzar-les en una escena nova)
+    this.scenes.forEach(s => {
+      const url = this._getThumbUrl(s);
+      if (!url) { this._ensureThumb(s); return; }
+      const tile = document.createElement('div');
+      tile.className = 'album-tile';
+      tile.style.backgroundImage = `url('${url.replace(/'/g, '%27')}')`;
+      tile.innerHTML = `
+        <span class="album-tile-badge">${s.name}</span>
+        <div class="album-tile-label">${s.name}</div>
+      `;
+      tile.addEventListener('click', () => this.createSceneFromPhotoSource(this._scenePhotoSourceKey(s), s.name));
+      grid.appendChild(tile);
+      hasItems = true;
+    });
+
+    if (hint) hint.classList.toggle('hidden', hasItems);
+  }
+
+  /* Crea una escena nova a partir d'una font de foto ja existent
+     (URL remota, o clau d'IndexedDB d'una foto de l'àlbum/d'una altra escena) */
+  async createSceneFromPhotoSource(sourceKey, suggestedName) {
+    const name = (prompt('Nom de la nova escena:', suggestedName || '') || '').trim();
+    if (!name) return;
+    const id = 'escena-' + Date.now().toString(36);
+    const scene = { id, name, color: '#0F6E56', shade: '#0a5040', hotspots: [] };
+
+    if (/^https?:\/\//.test(sourceKey)) {
+      scene.image = sourceKey;
+    } else {
+      try {
+        const blob = await PhotoStore.get(sourceKey);
+        if (blob) {
+          await PhotoStore.put(id, blob);
+          this._photoUrls[id] = URL.createObjectURL(blob);
+        }
+      } catch(e) {}
+    }
+
+    this.scenes.push(scene);
+    this.hidePhotoAlbum();
+    this.saveData();
+    this.renderSceneList();
+    this.switchScene(this.scenes.length - 1);
   }
 
   get currentScene() { return this.scenes[this.currentIdx]; }
@@ -2169,8 +2317,16 @@ class Studio {
       location.reload();
     });
     document.getElementById('btn-export').addEventListener('click', () => this.showExportModal());
-    document.getElementById('btn-new-scene').addEventListener('click', () => this.addScene());
+    document.getElementById('btn-new-scene').addEventListener('click', () => this.showPhotoAlbum());
     document.getElementById('btn-new-folder').addEventListener('click', () => this.addFolder());
+
+    // Àlbum de fotos (escena nova)
+    document.getElementById('album-close').addEventListener('click', () => this.hidePhotoAlbum());
+    document.getElementById('album-overlay').addEventListener('click', () => this.hidePhotoAlbum());
+    document.getElementById('btn-blank-scene').addEventListener('click', () => {
+      this.hidePhotoAlbum();
+      this.addScene();
+    });
 
     // Scene props live update
     document.getElementById('prop-name').addEventListener('input', e => {

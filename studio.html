@@ -568,6 +568,28 @@
     </div>
   </div>
 
+  <!-- Photo album modal (crear escena nova des d'una foto ja pujada o pujant-ne una) -->
+  <div id="photo-album-modal" class="hidden">
+    <div class="em-overlay" id="album-overlay"></div>
+    <div class="em-panel album-panel">
+      <div class="em-header">
+        <h3>Tria una foto per la nova escena</h3>
+        <button id="album-close">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+      <div class="em-body album-body">
+        <div id="photo-album-grid" class="album-grid"></div>
+        <p class="album-empty-hint" id="album-empty-hint">Encara no tens cap foto pujada. Puja'n una per començar.</p>
+      </div>
+      <div class="em-footer">
+        <button id="btn-blank-scene" class="secondary-btn">Escena en blanc (sense foto)</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Export modal -->
   <div id="export-modal" class="hidden">
     <div class="em-overlay"></div>
