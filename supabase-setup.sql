@@ -21,6 +21,10 @@ create policy "media_update" on storage.objects for update using (bucket_id = 'm
 create policy "media_delete" on storage.objects for delete using (bucket_id = 'media');
 
 -- 3) Taula amb les dades del tour (una sola fila: 'main')
+--    La fila id='config' reutilitza la mateixa columna `scenes` (jsonb) però
+--    hi guarda un objecte (no un array) amb la configuració global del tour:
+--    { cover, floorplan, folders, ... }. Vegeu sbLoadConfig/sbSaveConfig a
+--    supabase-config.js. No cal cap migració per afegir-hi noves claus.
 create table if not exists public.tour_data (
   id         text primary key,
   scenes     jsonb not null default '[]'::jsonb,

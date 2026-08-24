@@ -1517,6 +1517,7 @@ class Studio {
     document.getElementById('prop-default-lat').value = s.defaultLat != null ? s.defaultLat : '';
     document.getElementById('prop-min-fov').value = s.minFov != null ? s.minFov : 30;
     document.getElementById('prop-max-fov').value = s.maxFov != null ? s.maxFov : 100;
+    this._updateMarkFloorplanBtn();
 
     // Transition picker
     const activeTrans = localStorage.getItem('vg-transition-style') || 'fade';
@@ -2761,6 +2762,65 @@ class Studio {
       });
     }
 
+    // Plànol (floorplan / minimapa) → puja al núvol i publica
+    this._initFloorplan();
+    document.getElementById('floorplan-input').addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      e.target.value = '';
+      if (!(typeof sbUpload === 'function' && sbIsConfigured())) {
+        this.showToast('El núvol no està disponible per pujar el plànol');
+        return;
+      }
+      if (file.size / 1048576 > 50) { this.showToast('La imatge del plànol supera els 50 MB'); return; }
+      const ext = (file.name.match(/\.(\w+)$/) || [, 'jpg'])[1];
+      const ph = document.getElementById('floorplan-placeholder');
+      if (ph) { ph.style.display = ''; ph.textContent = 'Pujant…'; }
+      sbUpload(`floorplan.${ext}`, file).then(async url => {
+        this._applyFloorplanPreview(url);
+        localStorage.setItem('vg-floorplan', url);
+        try {
+          const cfg = await sbLoadConfig();
+          cfg.floorplan = url;
+          await sbSaveConfig(cfg);
+          this.showToast('Plànol publicat ✓ Visible per a tothom');
+        } catch (err) {
+          this.showToast('Plànol pujat, però error publicant: ' + (err.message || err));
+        }
+      }).catch(err => {
+        if (ph) ph.textContent = 'Arrossega o clica per pujar';
+        this.showToast('Error pujant el plànol: ' + (err.message || err));
+      });
+    });
+    const floorplanDrop = document.getElementById('floorplan-drop');
+    if (floorplanDrop) {
+      floorplanDrop.addEventListener('dragover', ev => { ev.preventDefault(); floorplanDrop.classList.add('drag-over'); });
+      floorplanDrop.addEventListener('dragleave', () => floorplanDrop.classList.remove('drag-over'));
+      floorplanDrop.addEventListener('drop', ev => {
+        ev.preventDefault(); floorplanDrop.classList.remove('drag-over');
+        const file = ev.dataTransfer.files[0];
+        if (file && file.type.startsWith('image/')) {
+          const input = document.getElementById('floorplan-input');
+          const dt = new DataTransfer(); dt.items.add(file);
+          input.files = dt.files;
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      });
+    }
+    document.getElementById('btn-remove-floorplan').addEventListener('click', async () => {
+      localStorage.removeItem('vg-floorplan');
+      this._applyFloorplanPreview(null);
+      try {
+        const cfg = await sbLoadConfig();
+        delete cfg.floorplan;
+        await sbSaveConfig(cfg);
+      } catch (e) {}
+      this.showToast('Plànol eliminat');
+    });
+    document.getElementById('btn-mark-floorplan').addEventListener('click', () => this.openFloorplanModal());
+    document.getElementById('floorplan-modal-close').addEventListener('click', () => this.closeFloorplanModal());
+    document.getElementById('floorplan-modal-overlay').addEventListener('click', () => this.closeFloorplanModal());
+
     // Nadir patch
     this._initNadir();
     document.getElementById('nadir-input').addEventListener('change', e => {
@@ -2897,6 +2957,97 @@ class Studio {
       removeBtn.style.display = 'none';
       if (controls) controls.style.display = 'none';
     }
+  }
+
+  async _initFloorplan() {
+    const local = localStorage.getItem('vg-floorplan');
+    if (local) { this._applyFloorplanPreview(local); return; }
+    if (typeof sbLoadConfig === 'function') {
+      try {
+        const cfg = await sbLoadConfig();
+        if (cfg && cfg.floorplan) {
+          this._applyFloorplanPreview(cfg.floorplan);
+          localStorage.setItem('vg-floorplan', cfg.floorplan);
+        }
+      } catch (e) {}
+    }
+  }
+
+  _applyFloorplanPreview(url) {
+    this.floorplanUrl = url || null;
+    const img = document.getElementById('floorplan-preview');
+    const ph  = document.getElementById('floorplan-placeholder');
+    const removeBtn = document.getElementById('btn-remove-floorplan');
+    if (!img) return;
+    if (url) {
+      img.src = url;
+      img.style.display = 'block';
+      if (ph) ph.style.display = 'none';
+      if (removeBtn) removeBtn.style.display = 'block';
+    } else {
+      img.removeAttribute('src');
+      img.style.display = 'none';
+      if (ph) { ph.style.display = ''; ph.textContent = 'Arrossega o clica per pujar'; }
+      if (removeBtn) removeBtn.style.display = 'none';
+    }
+    this._updateMarkFloorplanBtn();
+  }
+
+  _updateMarkFloorplanBtn() {
+    const btn = document.getElementById('btn-mark-floorplan');
+    const label = document.getElementById('btn-mark-floorplan-label');
+    if (!btn) return;
+    const s = this.currentScene;
+    const hasMarker = !!(s && s.plan);
+    btn.disabled = !this.floorplanUrl;
+    btn.title = this.floorplanUrl ? '' : 'Puja primer un plànol des de Configuració';
+    btn.classList.toggle('has-marker', hasMarker);
+    if (label) label.textContent = hasMarker ? 'Marcador col·locat — editar' : 'Marcar al plànol';
+  }
+
+  /* ── Floorplan marker modal: clica per desar scene.plan = {x, y} en % ── */
+  openFloorplanModal() {
+    if (!this.floorplanUrl) { this.showToast('Puja primer un plànol des de Configuració'); return; }
+    document.getElementById('floorplan-modal-scene').textContent = this.currentScene.name || 'l\'escena';
+    document.getElementById('floorplan-canvas-img').src = this.floorplanUrl;
+    this.renderFloorplanMarkers();
+    document.getElementById('floorplan-modal').classList.remove('hidden');
+    if (!this._floorplanWired) {
+      this._floorplanWired = true;
+      document.getElementById('floorplan-canvas-img').addEventListener('click', e => {
+        const rect = e.target.getBoundingClientRect();
+        const x = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
+        const y = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
+        this.currentScene.plan = { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10 };
+        this.renderFloorplanMarkers();
+        this._updateMarkFloorplanBtn();
+        this.saveData(true);
+      });
+    }
+  }
+
+  closeFloorplanModal() {
+    document.getElementById('floorplan-modal').classList.add('hidden');
+  }
+
+  renderFloorplanMarkers() {
+    const wrap = document.getElementById('floorplan-markers');
+    wrap.innerHTML = '';
+    this.scenes.forEach(s => {
+      if (!s.plan) return;
+      const isCurrent = s.id === this.currentScene.id;
+      const m = document.createElement('div');
+      m.className = 'fp-marker' + (isCurrent ? ' current' : '');
+      m.style.left = s.plan.x + '%';
+      m.style.top  = s.plan.y + '%';
+      if (isCurrent) {
+        const lbl = document.createElement('div');
+        lbl.className = 'fp-marker-label';
+        lbl.textContent = s.name;
+        m.appendChild(lbl);
+      }
+      wrap.appendChild(m);
+    });
   }
 
   pinchDist(t) { return Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY); }

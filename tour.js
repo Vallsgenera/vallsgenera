@@ -407,10 +407,12 @@ class VirtualTour {
     this.startX = 0; this.startY  = 0;
     this.startLon = 0; this.startLat = 0;
     this.velLon = 0; this.velLat  = 0;
-    this.userInteractedAt = 0;
+    this.userInteractedAt = performance.now();
     this.lastPinchDist = null;
     this._decalMeshes  = [];
     this.globeMode = false;
+    this.autoRotateDelay = 5000;   // ms d'inactivitat abans de reprendre l'auto-rotació
+    this.autoRotateSpeed = 0.035;  // graus/frame — rotació lenta
     this._inTransition = false;
     this._entryRender  = null;
     this._audioMuted   = false;
@@ -603,6 +605,7 @@ class VirtualTour {
       this.buildDecals(s);
       this.hideInfoPanel();
       this.closeLightbox();
+      this.renderMinimapMarkers();
 
       // Resol la textura: 1r IndexedDB (foto pujada), 2n ruta/url, 3r placeholder
       this.resolveTexture(s);
@@ -726,6 +729,7 @@ class VirtualTour {
   }
 
   handleHotspot(hs) {
+    this.userInteractedAt = performance.now();
     switch (hs.type) {
       case 'info':
         this.showInfoPanel(hs);
@@ -894,6 +898,7 @@ class VirtualTour {
   }
   hideInfoPanel() {
     document.getElementById('info-panel').classList.remove('visible');
+    this.userInteractedAt = performance.now();
   }
 
   /* ── Lightbox helpers ── */
@@ -1035,6 +1040,7 @@ class VirtualTour {
     const body = document.getElementById('lb-body');
     body.innerHTML = '';
     body.className = '';
+    this.userInteractedAt = performance.now();
   }
 
   /* ── Scene dots ── */
@@ -1091,6 +1097,10 @@ class VirtualTour {
     document.getElementById('btn-map').addEventListener('click', () => this.openMapModal());
     document.getElementById('map-close').addEventListener('click', () => this.closeMapModal());
     document.querySelector('.map-overlay').addEventListener('click', () => this.closeMapModal());
+
+    // Minimap (plànol)
+    document.getElementById('minimap-toggle').addEventListener('click', () => this.toggleMinimap());
+    document.getElementById('minimap-close').addEventListener('click', () => this.closeMinimap());
 
     // Click outside panels
     document.getElementById('viewer-container').addEventListener('click', e => {
@@ -1163,11 +1173,70 @@ class VirtualTour {
     const m = document.getElementById('map-modal');
     m.classList.add('visible');
     m.setAttribute('aria-hidden', 'false');
+    this.userInteractedAt = performance.now();
   }
   closeMapModal() {
     const m = document.getElementById('map-modal');
     m.classList.remove('visible');
     m.setAttribute('aria-hidden', 'true');
+    this.userInteractedAt = performance.now();
+  }
+
+  /* ── Minimap (plànol interactiu) ── */
+  setupMinimap(url) {
+    if (!url) return;
+    if (!this.scenes.some(s => s.plan)) return; // sense marcadors, no té sentit mostrar-lo
+    this.floorplanUrl = url;
+    document.getElementById('minimap-img').src = url;
+    document.getElementById('minimap-toggle').classList.remove('hidden');
+    document.getElementById('minimap-panel').classList.remove('hidden');
+    this.renderMinimapMarkers();
+  }
+
+  toggleMinimap() {
+    const panel = document.getElementById('minimap-panel');
+    this._minimapOpen = panel.classList.toggle('open');
+    this.userInteractedAt = performance.now();
+  }
+  closeMinimap() {
+    document.getElementById('minimap-panel').classList.remove('open');
+    this._minimapOpen = false;
+    this.userInteractedAt = performance.now();
+  }
+
+  renderMinimapMarkers() {
+    if (!this.floorplanUrl) return;
+    const wrap = document.getElementById('minimap-markers');
+    wrap.innerHTML = '';
+    this.scenes.forEach((s, i) => {
+      if (!s.plan) return;
+      const isCurrent = i === this.currentIndex;
+      const m = document.createElement('div');
+      m.className = 'mm-marker' + (isCurrent ? ' current' : '');
+      m.style.left = s.plan.x + '%';
+      m.style.top  = s.plan.y + '%';
+      m.title = s.name;
+      m.addEventListener('click', e => { e.stopPropagation(); this.loadScene(i); });
+      if (isCurrent) {
+        const lbl = document.createElement('div');
+        lbl.className = 'mm-marker-label';
+        lbl.textContent = s.name;
+        m.appendChild(lbl);
+        const cone = document.createElement('div');
+        cone.className = 'mm-cone';
+        cone.id = 'mm-cone-current';
+        m.appendChild(cone);
+      }
+      wrap.appendChild(m);
+    });
+    this.updateMinimapDirection();
+  }
+
+  /* Con de direcció: orientació aproximada de la càmera dins l'escena */
+  updateMinimapDirection() {
+    const cone = document.getElementById('mm-cone-current');
+    if (!cone) return;
+    cone.style.transform = `rotate(${-this.lon}deg)`;
   }
 
   /* ── Logo overlay ── */
@@ -1230,10 +1299,12 @@ class VirtualTour {
     const ov=document.getElementById('sidebar-overlay');
     const open=sb.classList.toggle('open');
     ov.classList.toggle('visible',open);
+    this.userInteractedAt = performance.now();
   }
   closeSidebar() {
     document.getElementById('sidebar').classList.remove('open');
     document.getElementById('sidebar-overlay').classList.remove('visible');
+    this.userInteractedAt = performance.now();
   }
   toggleAudio() {
     this._audioMuted = !this._audioMuted;
@@ -1261,15 +1332,59 @@ class VirtualTour {
     if (t) { t.textContent = 'VR: rota el dispositiu per mirar al voltant'; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),3000); }
   }
 
+  /* Captura amb marc de marca: franja inferior, ratlla verd llima, badge "V" i nom d'escena */
   takeSnapshot() {
-    // Force a render first so the canvas has current frame
-    this.renderer.render(this.threeScene, this.camera);
-    const canvas = document.getElementById('panorama-canvas');
-    const url = canvas.toDataURL('image/jpeg', 0.92);
+    this.renderer.render(this.threeScene, this.camera); // frame actual al canvas
+    const src = document.getElementById('panorama-canvas');
+    const W = src.width, H = src.height;
+    const out = document.createElement('canvas');
+    out.width = W; out.height = H;
+    const ctx = out.getContext('2d');
+    ctx.drawImage(src, 0, 0, W, H);
+
+    const sceneName = this.scenes[this.currentIndex]?.name || '';
+
+    // Franja de degradat fosc per llegibilitat del text
+    const barH = Math.round(H * 0.16);
+    const grad = ctx.createLinearGradient(0, H - barH, 0, H);
+    grad.addColorStop(0, 'rgba(7,16,9,0)');
+    grad.addColorStop(1, 'rgba(7,16,9,.85)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, H - barH, W, barH);
+
+    // Ratlla d'accent verd llima (identitat Vallsgenera)
+    ctx.fillStyle = '#b9ce00';
+    ctx.fillRect(0, H - 5, W, 5);
+
+    // Badge "V"
+    const badgeSize = Math.max(34, Math.round(H * 0.05));
+    const pad = Math.round(H * 0.028);
+    const bx = pad, by = H - pad - badgeSize;
+    const bgrad = ctx.createLinearGradient(bx, by, bx + badgeSize, by + badgeSize);
+    bgrad.addColorStop(0, '#ccde10'); bgrad.addColorStop(1, '#6b7a00');
+    ctx.fillStyle = bgrad;
+    drawRoundRect(ctx, bx, by, badgeSize, badgeSize, badgeSize * 0.28);
+    ctx.fill();
+    ctx.fillStyle = '#10240f';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = `800 ${Math.round(badgeSize * 0.56)}px system-ui,sans-serif`;
+    ctx.fillText('V', bx + badgeSize / 2, by + badgeSize / 2 + 1);
+
+    // Nom + text de marca
+    const textX = bx + badgeSize + pad * 0.8;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = '#b9ce00';
+    ctx.font = `800 ${Math.round(badgeSize * 0.4)}px system-ui,sans-serif`;
+    ctx.fillText('VALLSGENERA', textX, by + badgeSize * 0.44);
+    ctx.fillStyle = 'rgba(255,255,255,.9)';
+    ctx.font = `600 ${Math.round(badgeSize * 0.36)}px system-ui,sans-serif`;
+    ctx.fillText((sceneName ? sceneName + ' · ' : '') + 'Tour Virtual 360°', textX, by + badgeSize * 0.84);
+
+    const url = out.toDataURL('image/jpeg', 0.92);
     const a = document.createElement('a');
     a.href = url;
-    const sceneName = (this.scenes[this.currentIndex]?.name || 'snapshot').replace(/\s+/g,'-').toLowerCase();
-    a.download = `vallsgenera-${sceneName}.jpg`;
+    const fname = (sceneName || 'snapshot').replace(/\s+/g,'-').toLowerCase();
+    a.download = `vallsgenera-${fname}.jpg`;
     a.click();
   }
 
@@ -1306,6 +1421,11 @@ class VirtualTour {
 
     this._inTransition = true;
     this.sphere.visible = false;
+
+    // Amaga la UI normal (hotspots, barres...) mentre dura l'animació d'entrada
+    const hideEls = ['hotspots-overlay', 'top-bar', 'scene-dots', 'tour-controls', 'controls-hint', 'logo-overlay']
+      .map(id => document.getElementById(id)).filter(Boolean);
+    hideEls.forEach(el => { el.style.transition = 'opacity .3s ease'; el.style.opacity = '0'; el.style.pointerEvents = 'none'; });
 
     const R = 5;
     const camStart = 16;
@@ -1348,8 +1468,14 @@ class VirtualTour {
     const t0 = performance.now();
     const eio = t => t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2,3)/2;
 
+    // Saltable amb un clic/toc: força la finalització immediata
+    let skipped = false;
+    const canvas = document.getElementById('panorama-canvas');
+    const onSkip = () => { skipped = true; };
+    canvas.addEventListener('pointerdown', onSkip, { once: true });
+
     this._entryRender = () => {
-      const raw  = Math.min((performance.now() - t0) / duration, 1.0);
+      const raw  = skipped ? 1.0 : Math.min((performance.now() - t0) / duration, 1.0);
       const ease = eio(raw);
 
       // Sphere rotates smoothly to the target longitude
@@ -1369,6 +1495,7 @@ class VirtualTour {
       if (raw >= 1.0) {
         entryGeo.dispose();
         shaderMat.dispose();
+        canvas.removeEventListener('pointerdown', onSkip);
 
         this.sphere.visible = true;
         this.sphere.material = new THREE.MeshBasicMaterial({ map: tex });
@@ -1381,8 +1508,21 @@ class VirtualTour {
 
         this._entryRender  = null;
         this._inTransition = false;
+
+        // Torna a mostrar la UI normal
+        hideEls.forEach(el => { el.style.opacity = ''; el.style.pointerEvents = ''; });
       }
     };
+  }
+
+  /* Auto-rotació: només si no hi ha inèrcia de drag, cap modal obert i fa
+     `autoRotateDelay` ms que l'usuari no interactua */
+  _canAutoRotate() {
+    if (this.pointerDown || this.isTransitioning || this._inTransition) return false;
+    if (Math.abs(this.velLon) > 0.02 || Math.abs(this.velLat) > 0.02) return false;
+    const openSelectors = ['#lightbox.visible', '#sidebar.open', '#map-modal.visible', '#info-panel.visible'];
+    if (openSelectors.some(sel => document.querySelector(sel))) return false;
+    return (performance.now() - this.userInteractedAt) > this.autoRotateDelay;
   }
 
   update() {
@@ -1391,6 +1531,7 @@ class VirtualTour {
         this.lon += this.velLon + (this.globeMode ? 0.15 : 0);
         this.lat += this.velLat;
         this.velLon*=.93; this.velLat*=.93;
+        if (this._canAutoRotate()) this.lon += this.autoRotateSpeed;
       }
       this.lat=Math.max(-85,Math.min(85,this.lat));
     }
@@ -1402,6 +1543,7 @@ class VirtualTour {
       Math.sin(phi)*Math.sin(theta)
     );
     this.updateHotspots();
+    if (this._minimapOpen) this.updateMinimapDirection();
   }
 }
 
@@ -1435,17 +1577,22 @@ window.addEventListener('DOMContentLoaded', () => {
       const localCover = localStorage.getItem('vg-cover');
       if (localCover) {
         splash.style.background = `url('${localCover}') center/cover no-repeat, #0d1a12`;
-      } else if (typeof sbLoadConfig === 'function') {
+      }
+      if (typeof sbLoadConfig === 'function') {
         sbLoadConfig().then(cfg => {
-          if (cfg && cfg.cover) {
+          if (!localCover && cfg && cfg.cover) {
             splash.style.background = `url('${cfg.cover}') center/cover no-repeat, #0d1a12`;
           }
+          if (cfg && cfg.floorplan) window.tour.setupMinimap(cfg.floorplan);
         }).catch(() => {});
       }
       splash.addEventListener('click', () => {
-        // Entrada directa al tour, sense animació de transició
         splash.classList.add('out');
         setTimeout(() => splash.classList.add('hidden'), 400);
+        // Bola del món: la primera escena es desplega des d'un tiny planet
+        // fins a la vista inicial de l'escena (saltable amb un clic)
+        const s0 = window.tour.scenes[0] || {};
+        window.tour.startTinyPlanetTransition(2500, s0.defaultLon || 0, s0.defaultLat || 0);
       }, { once: true });
     }
   }
