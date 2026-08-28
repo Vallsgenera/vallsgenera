@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Studio | Vallsgenera Tour</title>
-  <link rel="stylesheet" href="studio.css?v=20260708b">
+  <link rel="stylesheet" href="studio.css?v=20260824a">
 </head>
 <body>
 
@@ -179,6 +179,24 @@
         <button id="btn-remove-logo" style="display:none">Treure logo</button>
       </div>
 
+      <!-- Plànol (floorplan / minimapa) -->
+      <div class="sp-logo-section">
+        <div class="sp-logo-header">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/>
+            <line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/>
+          </svg>
+          Plànol interactiu
+        </div>
+        <label class="logo-drop" id="floorplan-drop" title="Imatge del plànol (planta de l'edifici)">
+          <img id="floorplan-preview" alt="Plànol preview">
+          <span id="floorplan-placeholder">Arrossega o clica per pujar</span>
+          <input type="file" id="floorplan-input" accept=".jpg,.jpeg,.png,.webp" style="display:none">
+        </label>
+        <p class="cover-hint">Es puja al teu núvol i es publica automàticament. Un cop pujat, col·loca el marcador de cada escena des del seu panell de propietats.</p>
+        <button id="btn-remove-floorplan" style="display:none">Treure plànol</button>
+      </div>
+
       <!-- Nadir patch (tapador trípode) -->
       <div class="sp-logo-section">
         <div class="sp-logo-header">
@@ -201,6 +219,28 @@
         <button id="btn-remove-nadir" style="display:none">Treure nadir</button>
       </div>
 
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Floorplan marker modal ── -->
+    <div id="floorplan-modal" class="hidden">
+      <div class="em-overlay" id="floorplan-modal-overlay"></div>
+      <div class="em-panel floorplan-modal-panel">
+        <div class="em-header">
+          <h3>Marcar <span id="floorplan-modal-scene">l'escena</span> al plànol</h3>
+          <button id="floorplan-modal-close">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+        <div class="em-body floorplan-modal-body">
+          <p>Clica sobre el plànol per situar-hi aquesta escena. Els altres marcadors es mostren en gris com a referència.</p>
+          <div id="floorplan-canvas-wrap">
+            <img id="floorplan-canvas-img" alt="Plànol">
+            <div id="floorplan-markers"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -297,6 +337,16 @@
               Captura
             </button>
           </div>
+        </div>
+
+        <div class="pp-field">
+          <label>Posició al plànol <span class="label-hint">(minimapa del tour)</span></label>
+          <button type="button" id="btn-mark-floorplan" class="go-target-btn" style="width:100%;justify-content:center">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+            </svg>
+            <span id="btn-mark-floorplan-label">Marcar al plànol</span>
+          </button>
         </div>
 
         <div class="pp-field">
@@ -661,8 +711,8 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase-config.js?v=20260708b"></script>
-  <script src="tour.js?v=20260708b"></script>
-  <script src="studio.js?v=20260708b"></script>
+  <script src="supabase-config.js?v=20260824a"></script>
+  <script src="tour.js?v=20260824a"></script>
+  <script src="studio.js?v=20260824a"></script>
 </body>
 </html>
